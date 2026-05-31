@@ -82,6 +82,7 @@ The convenience helpers with no explicit context use fixed internal singleton st
 - `examples/SerialMenu`: zero-extra-hardware Serial input and Serial output.
 - `examples/DirectButtonsSerial`: Serial output with four individual pushbuttons wired directly to Arduino pins and ground.
 - `examples/MultiLevelSingleDeclaration`: larger nested Serial menu using one declaration.
+- `examples/ComprehensiveFeatureDemo`: Serial-only feature reference showing every entry type, decorator, runtime option, rich render metadata, persistence hook, and event-style input. This intentionally consumes most of the SRAM on smaller MCUs such as the Uno and Nano; it is meant as a practical copy/paste source for grabbing specific use cases, not as a practical project by itself.
 - `examples/HD44780Buttons`: 1602/HD44780 LCD output with six individual active-low navigation buttons.
 
 ## Entry Types
