@@ -27,6 +27,8 @@ static void applySettings() {
 }
 
 static menu_runtime_t menuRuntime;
+static print_display_ctx_t serialDisplay;
+static serial_keys_ctx_t serialInput;
 
 void setup() {
     Serial.begin(115200);
@@ -50,8 +52,8 @@ void setup() {
             ITEM_FUNC(F("Apply"), applySettings)
         );
 
-    display_t display = make_serial_display(48, 0);
-    input_source_t input = make_serial_keys_input();
+    display_t display = make_print_display(serialDisplay, Serial, 48, 0);
+    input_source_t input = make_serial_keys_input(serialInput);
     menuRuntime = menu_runtime_t::make(appMenu, display, input, true);
     menuRuntime.begin();
 }
@@ -64,6 +66,16 @@ void loop() {
 Serial controls: `w/s` move, `e` or `d` select/enter/toggle/cycle, `q` or `a` back. While editing an integer, `w/d` increment, `s/a` decrement, `e` saves, and `q` cancels.
 
 The `examples/SerialMenu` sketch is intentionally Serial-only so it works without extra hardware. Hardware-specific wiring belongs in examples and thin adapters, not in the menu declaration itself.
+
+## Resource Model
+
+BetterMenu is designed around fixed ownership rather than dynamic allocation. It does not use heap allocation, Arduino `String`, or STL containers. Menu capacity comes from the declaration itself and from compile-time limits such as `MENU_MAX_STACK` and `MENU_MAX_LINE`.
+
+Those limits are part of the embedded design rather than something the library tries to hide with allocation. If a product has a known maximum menu depth, line width, or number of visible rows, declare that capacity up front and let the firmware stay predictable. If a project needs deeper nesting or longer rendered lines, raise the compile-time limit deliberately and test the resulting RAM use on the target board.
+
+The expected embedded pattern is caller-owned storage: declare the menu, runtime, display context, input context, backing values, and action contexts with a lifetime that is clear from the sketch. Static/global storage is usually the simplest choice on small Arduino boards. Stack storage is also fine when the runtime and all referenced objects have the same scope and lifetime.
+
+The convenience helpers with no explicit context use fixed internal singleton storage for simple one-menu sketches. They still do not allocate heap memory, but explicit context objects such as `print_display_ctx_t`, `serial_keys_ctx_t`, and `buttons_ctx_t` make lifetime and instance count visible, so those are the preferred examples to copy into production firmware.
 
 ## Examples
 
@@ -108,7 +120,7 @@ Use `menuRuntime.set_persistence(load, save, ctx)` when a project wants shared p
 
 ## Display and Input
 
-Displays are provided through `display_t`. The preferred adapter form is a small `display_ops_t` table plus a `void *ctx`, so display state can live in user code instead of globals. `make_serial_display()` is included for Serial Monitor output, and `make_print_display()` adapts any Arduino `Print` output. Older contextless callbacks are still supported through `make_callback_display()`. A display width of `0` uses the `MENU_MAX_LINE` buffer limit; a display height of `0` renders all visible menu items.
+Displays are provided through `display_t`. The preferred adapter form is a small `display_ops_t` table plus a `void *ctx`, so display state can live in user code instead of hidden globals. `make_print_display()` adapts any Arduino `Print` output with caller-owned `print_display_ctx_t` storage. `make_serial_display()` is included as a fixed singleton convenience wrapper for Serial Monitor output. Older contextless callbacks are still supported through `make_callback_display()`. A display width of `0` uses the `MENU_MAX_LINE` buffer limit; a display height of `0` renders all visible menu items.
 
 For graphical or touch displays, `display_ops_t::render_line` can receive `menu_render_line_t` metadata for each title, item, and blank row. The text line is still supplied, but the renderer also gets item index, entry type, selected/editing/disabled flags, scroll hints, child-menu hints, and back availability. Render callbacks should use or copy the text during the callback; the pointer is not storage for later use.
 

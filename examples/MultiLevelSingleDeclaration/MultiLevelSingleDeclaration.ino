@@ -8,6 +8,7 @@ static int telemetryRateHz = 2;
 static int motorSpeed = 3;
 static bool telemetryEnabled = false;
 static int motorMode = 0;
+static print_display_ctx_t serialDisplay;
 static serial_keys_ctx_t serialInput;
 static stream_keymap_t const menuKeys = {
     'w', 's', 'e', 'q', 'a', 'd', 1
@@ -95,7 +96,7 @@ void setup() {
             )
         );
 
-    display_t display = make_serial_display(48, 0);
+    display_t display = make_print_display(serialDisplay, Serial, 48, 0);
     input_source_t input = make_serial_keys_input(serialInput, menuKeys);
     menuRuntime = menu_runtime_t::make(appMenu, display, input, true);
     menuRuntime.begin();

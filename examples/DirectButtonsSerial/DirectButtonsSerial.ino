@@ -13,6 +13,7 @@ static bool enabled = true;
 static int mode = 0;
 
 static menu_runtime_t menuRuntime;
+static print_display_ctx_t serialDisplay;
 static buttons_ctx_t buttonsInput;
 
 static void applySettings() {
@@ -50,7 +51,7 @@ void setup() {
             ITEM_FUNC(F("Reset"), resetSettings)
         );
 
-    display_t display = make_serial_display(48, 0);
+    display_t display = make_print_display(serialDisplay, Serial, 48, 0);
     input_source_t input = make_buttons_input(
         buttonsInput,
         BTN_UP,

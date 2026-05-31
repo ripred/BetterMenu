@@ -36,6 +36,8 @@ static void resetValues() {
 }
 
 static menu_runtime_t menuRuntime;
+static print_display_ctx_t serialDisplay;
+static serial_keys_ctx_t serialInput;
 
 void setup() {
     Serial.begin(115200);
@@ -70,8 +72,8 @@ void setup() {
             )
         );
 
-    display_t display = make_serial_display(48, 0);
-    input_source_t input = make_serial_keys_input();
+    display_t display = make_print_display(serialDisplay, Serial, 48, 0);
+    input_source_t input = make_serial_keys_input(serialInput);
     menuRuntime = menu_runtime_t::make(rootMenu, display, input, true);
     menuRuntime.begin();
 }
