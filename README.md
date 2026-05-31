@@ -1,6 +1,6 @@
 # BetterMenu
 
-BetterMenu is a header-only, non-blocking, declarative menu system for Arduino-class targets.
+BetterMenu is a header-only, non-blocking, declarative menu system for Arduino-class and other production embedded targets.
 
 The menu tree is defined in one expression. Submenus are stored inline by value, so changing menu structure, labels, values, choices, and actions does not require keeping parallel arrays, enums, callback tables, or hand-maintained parent/child wiring in sync.
 
