@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '**.json'
+      - '.github/workflows/jsoncheck.yml'
   pull_request:
 
 jobs:
@@ -25,4 +26,3 @@ jobs:
           if [ "$found" -eq 0 ]; then
             echo "No JSON files found."
           fi
-
