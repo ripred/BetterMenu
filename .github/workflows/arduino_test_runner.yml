@@ -1,0 +1,39 @@
+name: Arduino CI
+
+on: [push, pull_request]
+
+jobs:
+  compile-examples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile all examples for Arduino Uno
+        uses: arduino/compile-sketches@v1
+        with:
+          fqbn: arduino:avr:uno
+          sketch-paths: |
+            examples
+          enable-deltas-report: true
+
+      - name: Report size deltas on PRs
+        if: github.event_name == 'pull_request'
+        uses: arduino/report-size-deltas@v1
+
+  host-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build host tests
+        run: |
+          c++ -std=c++11 -Wall -Wextra -pedantic tests/host_tests.cpp -o /tmp/bettermenu_host_tests
+
+      - name: Run host tests
+        run: |
+          /tmp/bettermenu_host_tests
+
