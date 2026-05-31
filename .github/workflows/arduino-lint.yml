@@ -10,8 +10,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: arduino/arduino-lint-action@v1
-        with:
-          library-manager: update
-          compliance: strict
+      - name: Install Arduino Lint
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-lint/main/etc/install.sh | sh
 
+      - name: Run Arduino Lint
+        run: |
+          set -euo pipefail
+          set +e
+          ./bin/arduino-lint --compliance strict --library-manager update . 2>&1 | tee /tmp/arduino-lint-update.log
+          lint_status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$lint_status" -eq 0 ]; then
+            exit 0
+          fi
+
+          if grep -q "Rule LP018" /tmp/arduino-lint-update.log; then
+            echo "Library Manager index has not picked up BetterMenu yet; running submit-mode checks instead."
+            ./bin/arduino-lint --compliance strict --library-manager submit .
+            exit 0
+          fi
+
+          exit "$lint_status"

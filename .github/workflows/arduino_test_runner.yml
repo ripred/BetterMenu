@@ -18,6 +18,9 @@ jobs:
         uses: arduino/compile-sketches@v1
         with:
           fqbn: arduino:avr:uno
+          libraries: |
+            - source-path: ./
+            - name: LiquidCrystal
           sketch-paths: |
             examples
           enable-deltas-report: true
