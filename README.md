@@ -6,7 +6,7 @@ The menu tree is defined in one expression. Submenus are stored inline by value,
 
 ## Philosophy
 
-The main point of BetterMenu is that a menu should be declared once. The place where you define the menu is also where every attribute, label, nested submenu, editable value, fixed choice, and action lives. That single declaration is the source of truth for the whole menu system, so changing the menu during fast development means changing one coherent block of code, not chasing matching updates through several files or several disconnected sections of a sketch.
+The main point of BetterMenu is that a menu should be declared once. The place where you define the menu is also where every attribute, label, nested submenu, editable value, fixed choice, and action lives. That single declaration is the source of truth for the whole menu system, so changing or re-arranging the menu during fast development means changing one coherent block of code, not chasing matching updates through several files or several disconnected sections of a sketch.
 
 That is what `declarative` means here: describe the complete menu tree and let the library do the repetitive wiring. In a typical hand-built menu, changing one item often means keeping arrays, enum indexes, display rows, callback tables, and parent-child links synchronized by hand. That kind of coupling is easy to miss, and missed updates turn into navigation bugs, wrong labels, stale indexes, and callbacks firing from the wrong row.
 
