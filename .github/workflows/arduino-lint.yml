@@ -18,7 +18,7 @@ jobs:
         run: |
           set -euo pipefail
           set +e
-          ./bin/arduino-lint --compliance strict --library-manager update . 2>&1 | tee /tmp/arduino-lint-update.log
+          ./bin/arduino-lint --compliance strict --library-manager update "$GITHUB_WORKSPACE" 2>&1 | tee /tmp/arduino-lint-update.log
           lint_status=${PIPESTATUS[0]}
           set -e
 
@@ -28,7 +28,7 @@ jobs:
 
           if grep -q "Rule LP018" /tmp/arduino-lint-update.log; then
             echo "Library Manager index has not picked up BetterMenu yet; running submit-mode checks instead."
-            ./bin/arduino-lint --compliance strict --library-manager submit .
+            ./bin/arduino-lint --compliance strict --library-manager submit "$GITHUB_WORKSPACE"
             exit 0
           fi
 
