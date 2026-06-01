@@ -21,6 +21,7 @@ jobs:
           libraries: |
             - source-path: ./
             - name: LiquidCrystal
+            - name: ButtonGestures
           sketch-paths: |
             examples
           enable-deltas-report: true
