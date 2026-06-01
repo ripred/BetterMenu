@@ -4,7 +4,7 @@
 [![Arduino-lint](https://github.com/ripred/BetterMenu/actions/workflows/arduino-lint.yml/badge.svg)](https://github.com/ripred/BetterMenu/actions/workflows/arduino-lint.yml)
 [![JSON check](https://github.com/ripred/BetterMenu/actions/workflows/jsoncheck.yml/badge.svg)](https://github.com/ripred/BetterMenu/actions/workflows/jsoncheck.yml)
 ![code size:](https://img.shields.io/github/languages/code-size/ripred/BetterMenu)
-[![GitHub release](https://img.shields.io/github/release/ripred/BetterMenu.svg?maxAge=3600)](https://github.com/ripred/BetterMenu/releases)
+[![Arduino Library Manager](https://www.ardu-badge.com/badge/BetterMenu.svg)](https://www.ardu-badge.com/BetterMenu)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ripred/BetterMenu/blob/main/LICENSE)
 [![Stars](https://img.shields.io/github/stars/ripred/BetterMenu.svg?style=flat-square&colorB=4183c4)](https://github.com/ripred/BetterMenu)
 [![Forks](https://img.shields.io/github/forks/ripred/BetterMenu.svg?style=flat-square&colorB=4183c4)](https://github.com/ripred/BetterMenu)
