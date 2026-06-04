@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Compile all examples for Arduino Uno
+      - name: Compile portable examples for Arduino Uno
         uses: arduino/compile-sketches@v1
         with:
           fqbn: arduino:avr:uno
@@ -23,7 +23,26 @@ jobs:
             - name: LiquidCrystal
             - name: ButtonGestures
           sketch-paths: |
-            examples
+            examples/SerialMenu
+            examples/DirectButtonsSerial
+            examples/ButtonGesturesSerial
+            examples/MultiLevelSingleDeclaration
+            examples/ComprehensiveFeatureDemo
+            examples/HD44780Buttons
+          enable-deltas-report: true
+
+      - name: Compile CYD example for ESP32
+        uses: arduino/compile-sketches@v1
+        with:
+          fqbn: esp32:esp32:esp32
+          platforms: |
+            - name: esp32:esp32
+              source-url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          libraries: |
+            - source-path: ./
+            - name: TFT_eSPI
+          sketch-paths: |
+            examples/CYDAuroraPanel
           enable-deltas-report: true
 
       - name: Report size deltas on PRs
