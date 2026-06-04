@@ -2,7 +2,7 @@
 
 `CYDRoverConsole` is a graphical BetterMenu example for ESP32-2432S028R-style "Cheap Yellow Display" boards with a 320x240 ILI9341 TFT.
 
-The menu is still declared once in the sketch. The CYD-specific code is the `TFT_eSPI` display adapter that draws BetterMenu's `menu_render_line_t` metadata, then uses the active `menu_runtime_t` context to derive a proportional faux scrollbar from the current visible row window.
+The menu is still declared once in the sketch. The CYD-specific code is the `TFT_eSPI` display adapter that draws BetterMenu's `menu_render_line_t` metadata, then uses the active `menu_runtime_t` context to derive a proportional faux scrollbar from the current visible row window! 😁
 
 This example is the more advanced CYD display path. For a simpler graphical adapter that only consumes `menu_render_line_t` metadata, start with `examples/CYDAuroraPanel`.
 
@@ -34,6 +34,6 @@ The final root-menu viewport shows disabled-row lock rendering, alert coloring f
 
 ## PID Editing
 
-The PID submenu demonstrates breadcrumb rendering and inline edit controls for an integer-like value.
+The PID submenu demonstrates breadcrumb rendering and inline edit controls for floating-point type values.
 
 ![CYD Rover Console PID editing](images/edit.png)
