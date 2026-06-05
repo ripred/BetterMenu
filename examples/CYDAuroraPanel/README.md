@@ -14,18 +14,8 @@ Serial controls:
 - `e` or `d`: select, enter, toggle, or save
 - `q` or `a`: back or cancel
 
-## Startup
+## Navigation Walkthrough
 
-![CYD Aurora Panel startup](images/startup.png)
+The animation shows navigation through the grow-room root menu and maintenance submenu. It also demonstrates mutable value edits, select and boolean changes, disabled-row rendering, read-only values, child-menu navigation, and scroll hints.
 
-## After Six Down Inputs
-
-The first four Down inputs move the selection through the visible rows. The fifth and sixth Down inputs scroll the viewport far enough to bring the last item into view.
-
-![CYD Aurora Panel after six down inputs](images/after-six-down.png)
-
-## Maintenance Menu
-
-The maintenance submenu demonstrates actions, a boolean unlock, a disabled action, and a read-only value.
-
-![CYD Aurora Panel maintenance menu](images/maintenance.png)
+![CYD Aurora Panel full navigation](images/full-navigation.gif)
