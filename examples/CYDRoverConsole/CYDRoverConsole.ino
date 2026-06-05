@@ -281,9 +281,10 @@ static void cydRenderLine(void *ctx, menu_render_line_t const *line){
     tft.drawString(buf, ROW_X0+44, y+9, 2);
 
     if (edit && val){
-        tft.drawRoundRect(226,y+7,18,ROW_H-14,4, ACCENT); tft.drawLine(231,cy,239,cy, ACCENT);
-        tft.drawRoundRect(278,y+7,18,ROW_H-14,4, ACCENT); tft.drawLine(283,cy,291,cy, ACCENT); tft.drawLine(287,cy-4,287,cy+4, ACCENT);
-        tft.setTextDatum(MC_DATUM); tft.setTextColor(VAL_EDIT, cardBg); tft.drawString(val, 261, cy, 2);
+        int minusX = 196, plusX = 284;
+        tft.setTextDatum(MC_DATUM); tft.setTextColor(VAL_EDIT, cardBg); tft.drawString(val, 251, cy, 2);
+        tft.fillRoundRect(minusX,y+7,18,ROW_H-14,4, cardBg); tft.drawRoundRect(minusX,y+7,18,ROW_H-14,4, ACCENT); tft.drawLine(minusX+5,cy,minusX+13,cy, ACCENT);
+        tft.fillRoundRect(plusX,y+7,18,ROW_H-14,4, cardBg); tft.drawRoundRect(plusX,y+7,18,ROW_H-14,4, ACCENT); tft.drawLine(plusX+5,cy,plusX+13,cy, ACCENT); tft.drawLine(plusX+9,cy-4,plusX+9,cy+4, ACCENT);
     } else if (child){
         uint16_t cc = sel?ACCENT:MUTED; tft.drawLine(292,y+11,297,y+16,cc); tft.drawLine(297,y+16,292,y+21,cc);
     } else if (val){
