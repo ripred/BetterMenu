@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BetterMenu Builder</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="intro-panel">
+      <p>
+        Build a hardware-independent BetterMenu declaration, preview the menu in the browser, and export target-specific code for firmware or a static web demo. <a href="../web-adapter/">Open the RoverConsole WebAssembly demo</a>.
+      </p>
+    </section>
+
+    <section class="toolbar-panel" aria-label="Project controls">
+      <div class="field compact">
+        <label for="project-name">Project name</label>
+        <input id="project-name" type="text">
+      </div>
+      <div class="field compact">
+        <label for="root-title">Root menu title</label>
+        <input id="root-title" type="text">
+      </div>
+      <div class="button-row">
+        <button type="button" id="save-json">Export JSON</button>
+        <label class="file-button" for="load-json">Import JSON</label>
+        <input id="load-json" type="file" accept="application/json,.json">
+        <button type="button" id="load-sample">Load RoverConsole sample</button>
+        <button type="button" id="clear-model">Clear project</button>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <nav class="tabs" aria-label="Builder views">
+        <button class="tab active" type="button" data-tab="builder">Builder</button>
+        <button class="tab" type="button" data-tab="preview">Preview</button>
+        <button class="tab" type="button" data-tab="outputs">Outputs</button>
+        <button class="tab" type="button" data-tab="instructions">Instructions</button>
+      </nav>
+
+      <section class="tab-panel active" data-panel="builder">
+        <div class="builder-grid">
+          <section class="panel" aria-label="Menu tree">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-label">Menu model</p>
+                <h1>Structured editor</h1>
+              </div>
+              <button type="button" id="add-item">Add item</button>
+            </div>
+            <div class="field">
+              <label for="menu-select">Current menu</label>
+              <select id="menu-select"></select>
+            </div>
+            <div id="item-list" class="item-list" role="listbox" aria-label="Menu items"></div>
+          </section>
+
+          <section class="panel" aria-label="Item editor">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-label">Selected row</p>
+                <h2 id="editor-title">Item settings</h2>
+              </div>
+              <button type="button" id="delete-item" class="danger">Delete</button>
+            </div>
+            <div id="item-editor" class="editor-form"></div>
+          </section>
+        </div>
+
+        <section class="panel snippets-panel" aria-label="C++ support code">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-label">C++ support</p>
+              <h2>Backing values and callbacks</h2>
+            </div>
+            <label class="checkline">
+              <input id="generate-stubs" type="checkbox">
+              Generate missing stubs
+            </label>
+          </div>
+          <div class="snippet-grid">
+            <div class="field">
+              <label for="backing-snippet">Backing values</label>
+              <textarea id="backing-snippet" spellcheck="false"></textarea>
+            </div>
+            <div class="field">
+              <label for="callback-snippet">Callbacks, predicates, getters, setters, formatters</label>
+              <textarea id="callback-snippet" spellcheck="false"></textarea>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section class="tab-panel" data-panel="preview">
+        <div class="preview-grid">
+          <section class="panel preview-shell" aria-label="Generated menu preview">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-label">Browser preview</p>
+                <h2>Generated menu</h2>
+              </div>
+              <div class="button-row">
+                <button type="button" data-choice="3">Up</button>
+                <button type="button" data-choice="4">Down</button>
+                <button type="button" data-choice="1">Left</button>
+                <button type="button" data-choice="2">Right</button>
+                <button type="button" data-choice="5">Select</button>
+                <button type="button" data-choice="6">Back</button>
+              </div>
+            </div>
+            <div id="preview-menu" class="preview-menu" aria-label="Menu preview"></div>
+          </section>
+          <section class="panel" aria-label="Preview details">
+            <p class="panel-label">Selected item</p>
+            <h2 id="preview-title">Waiting for selection</h2>
+            <p id="preview-body">The preview updates from the structured BetterMenu model.</p>
+            <div class="facts">
+              <div><span>Runtime</span><strong>Model preview</strong></div>
+              <div><span>Export</span><strong>Arduino + Web</strong></div>
+              <div><span>Hosting</span><strong>Static Pages</strong></div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="outputs">
+        <section class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-label">Generated artifacts</p>
+              <h2>Copy or download outputs</h2>
+            </div>
+            <div class="button-row">
+              <button type="button" id="copy-output">Copy current output</button>
+              <button type="button" id="download-output">Download current output</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="output-select">Output</label>
+            <select id="output-select">
+              <option value="firmwareDeclaration">Firmware declaration</option>
+              <option value="firmwareSketch">Arduino Serial sketch</option>
+              <option value="stdioProgram">Desktop C++ stdio program</option>
+              <option value="wasmBridgeCpp">WebAssembly bridge source</option>
+              <option value="webPackageFiles">Web package manifest</option>
+              <option value="diagnostics">Diagnostics</option>
+            </select>
+          </div>
+          <pre id="output-code" class="code-output" tabindex="0"></pre>
+        </section>
+      </section>
+
+      <section class="tab-panel" data-panel="instructions">
+        <section class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-label">Next steps</p>
+              <h2>Generated placement guide</h2>
+            </div>
+          </div>
+          <div id="instructions" class="instructions"></div>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
