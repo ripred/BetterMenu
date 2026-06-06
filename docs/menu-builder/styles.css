@@ -88,6 +88,78 @@ a {
   padding: 16px;
 }
 
+.intro-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.builder-brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+  border-radius: 8px;
+  background: linear-gradient(180deg, #12252a, #101923);
+  padding: 12px;
+}
+
+.repo-cta {
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  color: #d9fffb;
+  background: #123139;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 10px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.repo-cta:hover,
+.repo-cta:focus-visible {
+  background: #163f49;
+  outline: none;
+}
+
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  color: #101923;
+  background: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+  box-shadow: 0 0 0 4px rgb(127 199 192 / 0.12);
+}
+
+.brand-lockup strong,
+.brand-lockup span:last-child {
+  display: block;
+}
+
+.brand-lockup strong {
+  color: #f4fbff;
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.brand-lockup span:last-child {
+  color: #a7d8d4;
+  font-size: 13px;
+}
+
 .intro-panel p {
   max-width: 88ch;
   margin: 0;
@@ -1036,6 +1108,12 @@ hr {
   .toolbar-panel,
   .panel {
     padding: 12px;
+  }
+
+  .builder-brand {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
   }
 
   .form-grid,
