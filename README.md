@@ -1,4 +1,4 @@
-# BetterMenu
+# <img src="docs/menu-builder/assets/icons/bettermenu-library-icon.svg" width="34" height="34" alt=""> BetterMenu
 
 [![Arduino CI](https://github.com/ripred/BetterMenu/workflows/Arduino%20CI/badge.svg)](https://github.com/ripred/BetterMenu/actions/workflows/arduino_test_runner.yml)
 [![Arduino-lint](https://github.com/ripred/BetterMenu/actions/workflows/arduino-lint.yml/badge.svg)](https://github.com/ripred/BetterMenu/actions/workflows/arduino-lint.yml)
