@@ -91,8 +91,8 @@ static inline char menu_text_char_at(menu_text_t text, uint8_t idx) {
 
 #define BETTER_MENU_VERSION_MAJOR 0
 #define BETTER_MENU_VERSION_MINOR 5
-#define BETTER_MENU_VERSION_PATCH 4
-#define BETTER_MENU_VERSION "0.5.4"
+#define BETTER_MENU_VERSION_PATCH 5
+#define BETTER_MENU_VERSION "0.5.5"
 
 /* =============================== Input API =============================== */
 /* Ways to feed input (all non-blocking):

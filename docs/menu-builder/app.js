@@ -2499,7 +2499,7 @@ function formatPreviewValue(item, value) {
   if (symbol === "formatMm") return `${value} mm`;
   if (symbol === "formatTempC") return `${value} C`;
   if (symbol === "formatHz") return `${value} Hz`;
-  if (symbol === "formatFirmware") return "v0.5.4";
+  if (symbol === "formatFirmware") return "v0.5.5";
   if (symbol === "formatUptime") return `${Math.floor(value / 60)}h ${String(value % 60).padStart(2, "0")}m`;
   return String(value);
 }

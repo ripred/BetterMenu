@@ -60,7 +60,7 @@ static void fmtVolts(void *c, char *o, uint8_t n)   { int v = *(int *)c; snprint
 static void fmtMm(void *c, char *o, uint8_t n)      { snprintf(o, n, "%d mm", *(int *)c); }
 static void fmtTempC(void *c, char *o, uint8_t n)   { snprintf(o, n, "%d C", *(int *)c); }
 static void fmtHz(void *c, char *o, uint8_t n)      { snprintf(o, n, "%d Hz", *(int *)c); }
-static void fmtFirmware(void *, char *o, uint8_t n) { snprintf(o, n, "v0.5.4"); }
+static void fmtFirmware(void *, char *o, uint8_t n) { snprintf(o, n, "v0.5.5"); }
 static void fmtUptime(void *c, char *o, uint8_t n)  { int m = *(int *)c; snprintf(o, n, "%dh %02dm", m / 60, m % 60); }
 
 static bool telemetryRateDisabled(void *) { return !telemetryStream; }
