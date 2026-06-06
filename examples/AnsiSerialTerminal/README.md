@@ -2,6 +2,11 @@
 
 `AnsiSerialTerminal` shows a BetterMenu display adapter that writes a fixed ANSI terminal region over Serial. It uses the normal `make_serial_keys_input()` keyboard adapter for input and an example-local `display_ops_t::render_line` adapter for output.
 
+Files:
+
+- `AnsiSerialTerminal.ino`: menu declaration, backing values, callbacks, setup, and loop
+- `AnsiPrintDisplay.h/.cpp`: ANSI `Print` display adapter
+
 Use a terminal that interprets ANSI escape sequences:
 
 ```bash
