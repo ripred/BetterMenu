@@ -183,6 +183,34 @@
               <input id="target-rotation" data-target-prop="rotation" type="number" min="0">
             </div>
             <div class="field">
+              <label for="target-origin-row">Origin row</label>
+              <input id="target-origin-row" data-target-prop="originRow" type="number" min="1">
+            </div>
+            <div class="field">
+              <label for="target-origin-col">Origin column</label>
+              <input id="target-origin-col" data-target-prop="originCol" type="number" min="1">
+            </div>
+            <div class="field">
+              <label for="target-serial-baud">Serial baud</label>
+              <select id="target-serial-baud" data-target-prop="serialBaud">
+                <option value="300">300</option>
+                <option value="1200">1200</option>
+                <option value="2400">2400</option>
+                <option value="4800">4800</option>
+                <option value="9600">9600</option>
+                <option value="14400">14400</option>
+                <option value="19200">19200</option>
+                <option value="28800">28800</option>
+                <option value="38400">38400</option>
+                <option value="57600">57600</option>
+                <option value="115200">115200</option>
+                <option value="230400">230400</option>
+                <option value="250000">250000</option>
+                <option value="500000">500000</option>
+                <option value="1000000">1000000</option>
+              </select>
+            </div>
+            <div class="field">
               <label for="target-display-object">Display object</label>
               <input id="target-display-object" data-target-prop="displayObject" type="text">
             </div>
@@ -208,6 +236,26 @@
             <label class="checkline target-check">
               <input id="target-navigation-wrap" data-target-prop="navigationWrap" type="checkbox">
               Wrap at menu ends
+            </label>
+            <label class="checkline target-check">
+              <input id="target-serial-autoscroll" data-target-prop="serialAutoscroll" type="checkbox">
+              Serial preview autoscroll
+            </label>
+            <label class="checkline target-check">
+              <input id="target-serial-timestamps" data-target-prop="serialTimestamps" type="checkbox">
+              Serial preview timestamps
+            </label>
+            <label class="checkline target-check">
+              <input id="target-ansi-color" data-target-prop="ansiColor" type="checkbox">
+              ANSI color
+            </label>
+            <label class="checkline target-check">
+              <input id="target-ansi-hide-cursor" data-target-prop="ansiHideCursor" type="checkbox">
+              Hide terminal cursor
+            </label>
+            <label class="checkline target-check">
+              <input id="target-ansi-clear-on-begin" data-target-prop="ansiClearOnBegin" type="checkbox">
+              Clear region on begin
             </label>
           </div>
           <div id="target-summary" class="target-summary"></div>
@@ -275,6 +323,7 @@
             <select id="output-select">
               <option value="firmwareDeclaration">Firmware declaration</option>
               <option value="firmwareSketch">Arduino Serial sketch</option>
+              <option value="ansiSketch">ANSI Serial sketch</option>
               <option value="stdioProgram">Desktop C++ stdio program</option>
               <option value="wasmBridgeCpp">WebAssembly bridge source</option>
               <option value="webPackageFiles">Web package manifest</option>

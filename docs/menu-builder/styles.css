@@ -464,6 +464,90 @@ hr {
   box-shadow: 0 0 0 1px #263443;
 }
 
+.preview-menu.text-stream-preview {
+  display: block;
+  padding: 0;
+}
+
+.stream-output {
+  min-height: 248px;
+  max-height: 360px;
+  overflow: auto;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #071017;
+  color: #dfe8f2;
+  padding: 14px;
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre;
+}
+
+.serial-stream-preview .stream-output {
+  color: #cdd8df;
+}
+
+.stdio-screen-preview .stream-output {
+  color: #e5edf3;
+}
+
+.preview-menu.ansi-terminal-preview {
+  display: grid;
+  gap: 8px;
+  justify-content: start;
+  padding: 0;
+}
+
+.terminal-region-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ansi-terminal {
+  display: grid;
+  grid-auto-rows: 1.45em;
+  width: fit-content;
+  min-width: min(100%, calc(var(--terminal-cols, 48) * 0.68em + 28px));
+  min-height: calc(var(--terminal-lines, 8) * 1.45em + 28px);
+  overflow: auto;
+  border: 1px solid #273747;
+  border-radius: 7px;
+  background: #050b10;
+  color: #dfe8f2;
+  padding: 14px;
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.ansi-line {
+  white-space: pre;
+}
+
+.ansi-line.title {
+  color: #5fe0c4;
+  font-weight: 700;
+}
+
+.ansi-line.selected {
+  color: #061015;
+  background: #5fd5d0;
+  font-weight: 700;
+}
+
+.ansi-line.editing {
+  color: #0d1218;
+  background: #e8c36d;
+  font-weight: 700;
+}
+
+.ansi-line.disabled {
+  color: #6f7f8e;
+}
+
+.ansi-line.selected.disabled {
+  color: #6f7f8e;
+  background: transparent;
+}
+
 .preview-header,
 .preview-row {
   display: grid;

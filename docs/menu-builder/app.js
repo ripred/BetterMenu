@@ -89,12 +89,20 @@ const els = {
   targetWidth: document.querySelector("#target-width"),
   targetHeight: document.querySelector("#target-height"),
   targetRotation: document.querySelector("#target-rotation"),
+  targetOriginRow: document.querySelector("#target-origin-row"),
+  targetOriginCol: document.querySelector("#target-origin-col"),
+  targetSerialBaud: document.querySelector("#target-serial-baud"),
   targetDisplayObject: document.querySelector("#target-display-object"),
   targetPinCs: document.querySelector("#target-pin-cs"),
   targetPinDc: document.querySelector("#target-pin-dc"),
   targetPinRst: document.querySelector("#target-pin-rst"),
   targetInputAdapter: document.querySelector("#target-input-adapter"),
   targetNavigationWrap: document.querySelector("#target-navigation-wrap"),
+  targetSerialAutoscroll: document.querySelector("#target-serial-autoscroll"),
+  targetSerialTimestamps: document.querySelector("#target-serial-timestamps"),
+  targetAnsiColor: document.querySelector("#target-ansi-color"),
+  targetAnsiHideCursor: document.querySelector("#target-ansi-hide-cursor"),
+  targetAnsiClearOnBegin: document.querySelector("#target-ansi-clear-on-begin"),
   targetSummary: document.querySelector("#target-summary")
 };
 
@@ -633,8 +641,20 @@ function createPreviewState(sourceModel) {
     editingItemId: "",
     editingOriginal: null,
     lastAction: "",
+    rendererId: "",
+    needsRender: true,
+    textBlocks: [],
+    serialTick: 0,
     values
   };
+}
+
+function resetPreviewOutput() {
+  if (!preview) return;
+  preview.rendererId = "";
+  preview.needsRender = true;
+  preview.textBlocks = [];
+  preview.serialTick = 0;
 }
 
 function currentPreviewMenuId() {
@@ -642,7 +662,17 @@ function currentPreviewMenuId() {
 }
 
 function previewSelectedFor(menuId, rowCount) {
-  const selected = clamp(numberOr(preview.selectedByMenu?.[menuId], preview.selected), 0, Math.max(0, rowCount - 1));
+  const rows = visibleItemsForMenu(menuId);
+  if (!rowCount || !rows.length) {
+    preview.selectedByMenu ||= {};
+    preview.selectedByMenu[menuId] = 0;
+    preview.selected = 0;
+    return 0;
+  }
+  let selected = clamp(numberOr(preview.selectedByMenu?.[menuId], preview.selected), 0, Math.max(0, rowCount - 1));
+  if (rows[selected] && isDisabled(rows[selected])) {
+    selected = firstSelectableIndex(rows);
+  }
   preview.selectedByMenu ||= {};
   preview.selectedByMenu[menuId] = selected;
   preview.selected = selected;
@@ -653,6 +683,53 @@ function setPreviewSelected(menuId, selected, rowCount) {
   preview.selectedByMenu ||= {};
   preview.selectedByMenu[menuId] = clamp(selected, 0, Math.max(0, rowCount - 1));
   preview.selected = preview.selectedByMenu[menuId];
+}
+
+function previewSignature() {
+  const selectedByMenu = {};
+  for (const key of Object.keys(preview.selectedByMenu || {}).sort()) {
+    selectedByMenu[key] = preview.selectedByMenu[key];
+  }
+  const values = {};
+  for (const key of Object.keys(preview.values || {}).sort()) {
+    values[key] = preview.values[key];
+  }
+  return JSON.stringify({
+    stack: preview.stack,
+    selected: preview.selected,
+    selectedByMenu,
+    editingItemId: preview.editingItemId,
+    editingOriginal: preview.editingOriginal,
+    lastAction: preview.lastAction,
+    values
+  });
+}
+
+function firstSelectableIndex(rows) {
+  const index = rows.findIndex((row) => !isDisabled(row));
+  return index >= 0 ? index : 0;
+}
+
+function nextSelectableIndex(rows, selected, direction, wrap) {
+  if (!rows.length) return selected;
+  let index = selected;
+  for (let tries = 0; tries < rows.length; tries += 1) {
+    if (direction < 0) {
+      if (index === 0) {
+        if (!wrap) return selected;
+        index = rows.length - 1;
+      } else {
+        index -= 1;
+      }
+    } else if (index + 1 >= rows.length) {
+      if (!wrap) return selected;
+      index = 0;
+    } else {
+      index += 1;
+    }
+    if (!isDisabled(rows[index])) return index;
+  }
+  return selected;
 }
 
 function initialFromKnownSymbol(symbol) {
@@ -891,18 +968,29 @@ function renderTargetSettings() {
   els.targetWidth.value = settings.width;
   els.targetHeight.value = settings.height;
   els.targetRotation.value = settings.rotation;
+  els.targetOriginRow.value = settings.originRow;
+  els.targetOriginCol.value = settings.originCol;
+  els.targetSerialBaud.value = String(settings.serialBaud);
   els.targetDisplayObject.value = settings.displayObject;
   els.targetPinCs.value = settings.pins.cs;
   els.targetPinDc.value = settings.pins.dc;
   els.targetPinRst.value = settings.pins.rst;
   els.targetInputAdapter.value = settings.inputAdapter;
   els.targetNavigationWrap.checked = Boolean(settings.navigationWrap);
+  els.targetSerialAutoscroll.checked = Boolean(settings.serialAutoscroll);
+  els.targetSerialTimestamps.checked = Boolean(settings.serialTimestamps);
+  els.targetAnsiColor.checked = Boolean(settings.ansiColor);
+  els.targetAnsiHideCursor.checked = Boolean(settings.ansiHideCursor);
+  els.targetAnsiClearOnBegin.checked = Boolean(settings.ansiClearOnBegin);
   els.targetSummary.innerHTML = `
     <section>
       <h3>${escapeHtml(profile.label)}</h3>
       <ul>
         ${profileInstructions(profile).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
         <li>Navigation: ${settings.navigationWrap ? "wraps from either menu end to the other" : "stops at the first and last selectable rows"}.</li>
+        ${profile.input.includes("Serial") || profile.display.includes("Serial") || profile.display.includes("Print") ? `<li>Serial baud: ${settings.serialBaud}.</li>` : ""}
+        ${profile.previewRendererId === "serial-stream" ? `<li>Serial preview: ${settings.serialAutoscroll ? "autoscroll on" : "autoscroll off"}, timestamps ${settings.serialTimestamps ? "on" : "off"}.</li>` : ""}
+        ${profile.capabilities.terminal ? `<li>Terminal region: ${settings.width}x${settings.height} at row ${settings.originRow}, column ${settings.originCol}.</li>` : ""}
       </ul>
     </section>
   `;
@@ -987,15 +1075,51 @@ function decoratorHtml(item, key, macro, role) {
 }
 
 function renderPreview() {
+  const profile = targetProfileById(model.targetSettings.profileId);
+  const rendererId = profile.previewRendererId || (profile.capabilities.graphical ? "graphical-viewport" : "serial-stream");
+  if (preview.rendererId !== rendererId) {
+    preview.rendererId = rendererId;
+    preview.needsRender = true;
+    preview.textBlocks = [];
+  }
+  clearPreviewSurface(rendererId);
+  if (rendererId === "serial-stream") {
+    renderSerialStreamPreview();
+  } else if (rendererId === "stdio-screen") {
+    renderStdioScreenPreview();
+  } else if (rendererId === "ansi-terminal") {
+    renderAnsiTerminalPreview();
+  } else {
+    renderGraphicalPreview(rendererId);
+  }
+}
+
+function clearPreviewSurface(rendererId) {
+  const zoom = clamp(numberOr(model.previewSettings.zoom, 1), 0.75, 2);
+  els.previewMenu.textContent = "";
+  els.previewMenu.className = "preview-menu";
+  els.previewFrame.className = "preview-frame";
+  els.previewFrame.style.removeProperty("--preview-width");
+  els.previewFrame.style.removeProperty("--preview-height");
+  els.previewFrame.style.removeProperty("--preview-zoom");
+  els.previewMenu.style.removeProperty("--preview-width");
+  els.previewMenu.style.removeProperty("--preview-height");
+  els.previewMenu.style.removeProperty("--preview-aspect");
+  els.previewMenu.style.removeProperty("--preview-zoom");
+  els.previewZoomLabel.textContent = `${Math.round(zoom * 100)}%`;
+  els.previewZoomOut.disabled = rendererId !== "graphical-viewport" || zoom <= 0.75;
+  els.previewZoomIn.disabled = rendererId !== "graphical-viewport" || zoom >= 2;
+}
+
+function renderGraphicalPreview(rendererId) {
   const menuId = currentPreviewMenuId();
   const rows = visibleItemsForMenu(menuId);
   const selected = previewSelectedFor(menuId, rows.length);
   const profile = targetProfileById(model.targetSettings.profileId);
-  const graphicalPreview = Boolean(profile.capabilities.graphical);
+  const graphicalPreview = rendererId === "graphical-viewport";
   const targetWidth = numberOr(model.targetSettings.width, 0);
   const targetHeight = numberOr(model.targetSettings.height, 0);
   const zoom = clamp(numberOr(model.previewSettings.zoom, 1), 0.75, 2);
-  els.previewMenu.textContent = "";
   els.previewMenu.classList.toggle("rover-skin", model.previewSettings.skinId === "rover-console" || model.targetSettings.skinId === "rover-console");
   els.previewMenu.classList.toggle("graphical-viewport", graphicalPreview);
   els.previewFrame.classList.toggle("graphical-frame", graphicalPreview);
@@ -1007,18 +1131,7 @@ function renderPreview() {
     els.previewMenu.style.setProperty("--preview-height", `${targetHeight}px`);
     els.previewMenu.style.setProperty("--preview-aspect", `${targetWidth} / ${targetHeight}`);
     els.previewMenu.style.setProperty("--preview-zoom", String(zoom));
-  } else {
-    els.previewFrame.style.removeProperty("--preview-width");
-    els.previewFrame.style.removeProperty("--preview-height");
-    els.previewFrame.style.removeProperty("--preview-zoom");
-    els.previewMenu.style.removeProperty("--preview-width");
-    els.previewMenu.style.removeProperty("--preview-height");
-    els.previewMenu.style.removeProperty("--preview-aspect");
-    els.previewMenu.style.removeProperty("--preview-zoom");
   }
-  els.previewZoomLabel.textContent = `${Math.round(zoom * 100)}%`;
-  els.previewZoomOut.disabled = zoom <= 0.75;
-  els.previewZoomIn.disabled = zoom >= 2;
 
   const header = document.createElement("div");
   header.className = "preview-header";
@@ -1037,8 +1150,9 @@ function renderPreview() {
     if (graphicalPreview) {
       row.style.setProperty("--row-top", `${44 + offset * 36}px`);
     }
-    if (index === selected) row.classList.add("selected");
-    if (isDisabled(item)) row.classList.add("disabled");
+    const disabled = isDisabled(item);
+    if (index === selected && !disabled) row.classList.add("selected");
+    if (disabled) row.classList.add("disabled");
     if (item.type === "bool" || item.type === "select") row.classList.add("choice");
     const value = previewValueText(item);
     const meta = graphicalPreview ? "" : `<span class="meta">${typeLabel(item.type)}${assetLabel(item) ? ` · ${escapeHtml(assetLabel(item))}` : ""}</span>`;
@@ -1056,6 +1170,166 @@ function renderPreview() {
   }
 
   renderPreviewDetails(rows[selected]);
+  preview.needsRender = false;
+}
+
+function renderSerialStreamPreview() {
+  const snapshot = currentTextSnapshot();
+  const settings = normalizeTargetSettings(model.targetSettings);
+  if (preview.needsRender || !preview.textBlocks.length) {
+    preview.textBlocks.push(formatSerialBlock(snapshot.lines, settings));
+  }
+  els.previewMenu.classList.add("text-stream-preview", "serial-stream-preview");
+  const pre = document.createElement("pre");
+  pre.className = "stream-output";
+  const blocks = settings.serialAutoscroll ? preview.textBlocks : preview.textBlocks.slice(-1);
+  pre.textContent = blocks.join("\n");
+  els.previewMenu.append(pre);
+  if (settings.serialAutoscroll) {
+    pre.scrollTop = pre.scrollHeight;
+  }
+  renderPreviewDetails(snapshot.selectedItem);
+  preview.needsRender = false;
+}
+
+function renderStdioScreenPreview() {
+  const snapshot = currentTextSnapshot();
+  els.previewMenu.classList.add("text-stream-preview", "stdio-screen-preview");
+  const pre = document.createElement("pre");
+  pre.className = "stream-output";
+  pre.textContent = [
+    ...snapshot.lines,
+    "",
+    "[w/s] move  [e/d] select or edit +  [a] back or edit -  [q] back  [x] quit"
+  ].join("\n");
+  els.previewMenu.append(pre);
+  renderPreviewDetails(snapshot.selectedItem);
+  preview.needsRender = false;
+}
+
+function renderAnsiTerminalPreview() {
+  const snapshot = currentTextSnapshot();
+  const settings = normalizeTargetSettings(model.targetSettings);
+  const width = Math.max(1, settings.width || 48);
+  const height = Math.max(1, settings.height || snapshot.lines.length || 1);
+  els.previewMenu.classList.add("ansi-terminal-preview");
+  els.previewMenu.style.setProperty("--terminal-cols", String(width));
+  const header = document.createElement("div");
+  header.className = "terminal-region-label";
+  header.textContent = `ANSI region ${width}x${height} at ${settings.originRow},${settings.originCol}`;
+  const terminal = document.createElement("div");
+  terminal.className = "ansi-terminal";
+  terminal.style.setProperty("--terminal-lines", String(height));
+  snapshot.rows.forEach((line) => {
+    const row = document.createElement("div");
+    row.className = "ansi-line";
+    if (line.kind === "title") row.classList.add("title");
+    if (line.selected) row.classList.add("selected");
+    if (line.disabled) row.classList.add("disabled");
+    if (line.editing) row.classList.add("editing");
+    if (settings.ansiColor) row.classList.add("color");
+    row.textContent = padTerminalLine(line.text, width);
+    terminal.append(row);
+  });
+  els.previewMenu.append(header, terminal);
+  renderPreviewDetails(snapshot.selectedItem);
+  preview.needsRender = false;
+}
+
+function currentTextSnapshot() {
+  const menuId = currentPreviewMenuId();
+  const rows = visibleItemsForMenu(menuId);
+  const selected = previewSelectedFor(menuId, rows.length);
+  const settings = normalizeTargetSettings(model.targetSettings);
+  const width = settings.width || 32;
+  const height = settings.height || rows.length + 1;
+  const itemWindow = height > 0 ? Math.max(0, height - 1) : rows.length;
+  const top = previewTop(rows.length, selected, itemWindow || rows.length || 1);
+  const rendered = [];
+  rendered.push({
+    kind: "title",
+    text: clipTextLine(textPreviewTitle(), width),
+    selected: false,
+    disabled: false,
+    editing: false,
+    item: null
+  });
+  for (let offset = 0; offset < itemWindow; offset += 1) {
+    const index = top + offset;
+    const item = rows[index];
+    rendered.push(textRenderLine(item, index, selected, width));
+  }
+  while (rendered.length < height) {
+    rendered.push({ kind: "blank", text: "", selected: false, disabled: false, editing: false, item: null });
+  }
+  return {
+    rows: rendered.slice(0, height),
+    lines: rendered.slice(0, height).map((line) => line.text),
+    selectedItem: rows[selected] || null
+  };
+}
+
+function textRenderLine(item, index, selected, width) {
+  if (!item) {
+    return { kind: "blank", text: "", selected: false, disabled: false, editing: false, item: null };
+  }
+  const disabled = isDisabled(item);
+  const isSelected = index === selected && !disabled;
+  const editing = preview.editingItemId === item.id;
+  let line = `${isSelected ? ">" : " "}${item.label || "(untitled)"}`;
+  const value = textPreviewValue(item);
+  if (value) {
+    line += `: ${value}`;
+  }
+  if (editing && previewValueKey(item)) {
+    line += "  (edit)";
+  }
+  return {
+    kind: "item",
+    text: clipTextLine(line, width),
+    selected: isSelected,
+    disabled,
+    editing,
+    item
+  };
+}
+
+function textPreviewValue(item) {
+  if (!item || item.type === "menu" || item.type === "func") return "";
+  if (item.type === "bool") return preview.values[item.stateSymbol] ? item.trueLabel || "On" : item.falseLabel || "Off";
+  if (item.type === "select") {
+    const value = preview.values[item.stateSymbol];
+    const choice = (item.choices || []).find((entry) => Number(entry.value) === Number(value)) || item.choices?.[0];
+    return choice?.label || "";
+  }
+  const value = item.type === "value" ? preview.values[symbolFromCtx(item.ctx)] : preview.values[item.stateSymbol];
+  return formatPreviewValue(item, numberOr(value, 0));
+}
+
+function textPreviewTitle() {
+  return preview.stack.map((id) => byId(model.menus, id)?.title || id).join("/");
+}
+
+function formatSerialBlock(lines, settings = normalizeTargetSettings(model.targetSettings)) {
+  const prefix = settings.serialTimestamps ? `[${formatSerialTimestamp(preview.serialTick++)}] ` : "";
+  return ["", `${prefix}--------------------------------`, ...lines.map((line) => `${prefix}${line}`)].join("\n");
+}
+
+function formatSerialTimestamp(tick) {
+  const seconds = tick % 60;
+  const minutes = Math.floor(tick / 60) % 60;
+  const hours = Math.floor(tick / 3600);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function clipTextLine(line, width) {
+  const text = String(line || "");
+  return width > 0 ? text.slice(0, width) : text;
+}
+
+function padTerminalLine(line, width) {
+  const clipped = clipTextLine(line, width);
+  return `${clipped}${" ".repeat(Math.max(0, width - clipped.length))}`;
 }
 
 function previewTop(total, selected, windowSize) {
@@ -1162,6 +1436,7 @@ function renderInstructions() {
       <ol>
         <li>Use the declaration-only output when the sketch already owns setup, loop, input, and display adapters.</li>
         <li>Use the Arduino Serial sketch output for a complete text-console starting point.</li>
+        <li>Use the ANSI Serial sketch output for terminal apps that support cursor positioning and ANSI styles.</li>
         <li>Use the Desktop C++ stdio program for command-line testing without Arduino or browser dependencies.</li>
         <li>Use the Adafruit ILI9341 sketch and generated asset header together for the first graphical Adafruit_GFX target.</li>
         <li>Move generated backing variables and callbacks into normal sketch files when replacing stubs with real application logic.</li>
@@ -1193,6 +1468,7 @@ function renderInstructions() {
 function generateOutputs() {
   const declaration = generateFirmwareDeclaration();
   const sketch = generateFirmwareSketch();
+  const ansiSketch = generateAnsiSerialSketch();
   const stdio = generateStdioProgram();
   const bridge = generateWasmBridgeCpp();
   const adafruitAssets = generateAdafruitAssetHeader();
@@ -1200,12 +1476,13 @@ function generateOutputs() {
   return {
     firmwareDeclaration: declaration,
     firmwareSketch: sketch,
+    ansiSketch,
     stdioProgram: stdio,
     wasmBridgeCpp: bridge,
     webPackageFiles: JSON.stringify(generateWebPackageFiles(bridge), null, 2),
     adafruitSketch,
     adafruitAssets,
-    targetPackageFiles: JSON.stringify(generateTargetPackageFiles({ bridge, adafruitSketch, adafruitAssets }), null, 2),
+    targetPackageFiles: JSON.stringify(generateTargetPackageFiles({ bridge, ansiSketch, adafruitSketch, adafruitAssets }), null, 2),
     diagnostics: collectDiagnostics().join("\n") || "No model diagnostics."
   };
 }
@@ -1224,8 +1501,14 @@ function navigationSetupCode(runtimeName) {
   return model.targetSettings.navigationWrap ? `\n    ${runtimeName}.set_navigation_wrap(true);` : "";
 }
 
+function settingsForProfile(profileId) {
+  const settings = model.targetSettings.profileId === profileId ? model.targetSettings : defaultTargetSettings(profileId);
+  return normalizeTargetSettings(settings);
+}
+
 function generateFirmwareSketch() {
   const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
+  const settings = settingsForProfile("arduino-serial");
   return `#include <BetterMenu.h>
 
 ${generateSupportCode()}
@@ -1238,14 +1521,14 @@ static serial_keys_ctx_t keyInput;
 static print_display_ctx_t serialDisplay;
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(${settings.serialBaud});
     while (!Serial) {
     }
     Serial.println(F("BetterMenu Serial demo"));
     Serial.println(F("Use W/S to move, E to select, Q to go back, A/D to edit."));
 
     input_source_t input = make_serial_keys_input(keyInput);
-    display_t display = make_print_display(serialDisplay, Serial, 32, 8);
+    display_t display = make_print_display(serialDisplay, Serial, ${settings.width}, ${settings.height});
     runtime = menu_runtime_t::make(${menuName}, display, input, false);
     runtime.set_show_title(true);
     runtime.set_show_breadcrumbs(true);${navigationSetupCode("runtime")}
@@ -1258,8 +1541,176 @@ void loop() {
 `;
 }
 
+function generateAnsiSerialSketch() {
+  const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
+  const settings = settingsForProfile("arduino-ansi-serial");
+  const width = Math.max(1, settings.width || 48);
+  const height = Math.max(1, settings.height || 8);
+  return `#include <BetterMenu.h>
+
+#define BM_ANSI_COLOR ${settings.ansiColor ? 1 : 0}
+#define BM_ANSI_HIDE_CURSOR ${settings.ansiHideCursor ? 1 : 0}
+#define BM_ANSI_CLEAR_ON_BEGIN ${settings.ansiClearOnBegin ? 1 : 0}
+
+${generateSupportCode()}
+
+static const auto ${menuName} =
+${menuExpression(model.rootMenuId, 0)};
+
+static menu_runtime_t menuRuntime;
+static serial_keys_ctx_t serialInput;
+
+struct ansi_display_ctx_t {
+    Print *out;
+    uint8_t width;
+    uint8_t height;
+    uint8_t originRow;
+    uint8_t originCol;
+    bool begun;
+};
+
+static ansi_display_ctx_t ansiDisplay;
+
+static void ansiCursor(Print &out, uint8_t row, uint8_t col) {
+    out.print(F("\\033["));
+    out.print(row);
+    out.print(';');
+    out.print(col);
+    out.print('H');
+}
+
+static void ansiStyle(Print &out, menu_render_line_t const *line) {
+    if (!line) {
+        out.print(F("\\033[0m"));
+        return;
+    }
+#if BM_ANSI_COLOR
+    if (line->kind == MENU_RENDER_TITLE) {
+        out.print(F("\\033[1;36m"));
+    } else if (line->flags & MENU_RENDER_DISABLED) {
+        out.print(F("\\033[2;37m"));
+    } else if (line->flags & MENU_RENDER_EDITING) {
+        out.print(F("\\033[1;30;43m"));
+    } else if (line->flags & MENU_RENDER_SELECTED) {
+        out.print(F("\\033[1;30;46m"));
+    } else {
+        out.print(F("\\033[0m"));
+    }
+#else
+    if (line->flags & MENU_RENDER_SELECTED) {
+        out.print(F("\\033[7m"));
+    } else if (line->flags & MENU_RENDER_DISABLED) {
+        out.print(F("\\033[2m"));
+    } else if (line->flags & MENU_RENDER_EDITING) {
+        out.print(F("\\033[4m"));
+    } else if (line->kind == MENU_RENDER_TITLE) {
+        out.print(F("\\033[1m"));
+    } else {
+        out.print(F("\\033[0m"));
+    }
+#endif
+}
+
+static void ansiPrintPadded(Print &out, const char *text, uint8_t width) {
+    uint8_t written = 0;
+    while (text && *text && written < width) {
+        out.print(*text++);
+        ++written;
+    }
+    while (written < width) {
+        out.print(' ');
+        ++written;
+    }
+}
+
+static void ansiClearRegion(ansi_display_ctx_t *ctx) {
+    if (!ctx || !ctx->out) {
+        return;
+    }
+    for (uint8_t row = 0; row < ctx->height; ++row) {
+        ansiCursor(*ctx->out, ctx->originRow + row, ctx->originCol);
+        ansiPrintPadded(*ctx->out, "", ctx->width);
+    }
+}
+
+static void ansiClear(void *raw) {
+    ansi_display_ctx_t *ctx = static_cast<ansi_display_ctx_t *>(raw);
+    if (!ctx || !ctx->out) {
+        return;
+    }
+    if (!ctx->begun) {
+#if BM_ANSI_CLEAR_ON_BEGIN
+        ctx->out->print(F("\\033[2J"));
+#endif
+#if BM_ANSI_HIDE_CURSOR
+        ctx->out->print(F("\\033[?25l"));
+#endif
+        ctx->begun = true;
+    }
+    ctx->out->print(F("\\033[0m"));
+    ansiClearRegion(ctx);
+}
+
+static void ansiFlush(void *raw) {
+    ansi_display_ctx_t *ctx = static_cast<ansi_display_ctx_t *>(raw);
+    if (!ctx || !ctx->out) {
+        return;
+    }
+    ctx->out->print(F("\\033[0m"));
+    ansiCursor(*ctx->out, ctx->originRow + ctx->height, ctx->originCol);
+    ctx->out->print(F("w/s move  e/d select or edit +  a/q back or edit -"));
+}
+
+static void ansiRenderLine(void *raw, menu_render_line_t const *line) {
+    ansi_display_ctx_t *ctx = static_cast<ansi_display_ctx_t *>(raw);
+    if (!ctx || !ctx->out || !line || line->row >= ctx->height) {
+        return;
+    }
+    ansiCursor(*ctx->out, ctx->originRow + line->row, ctx->originCol);
+    ansiStyle(*ctx->out, line);
+    ansiPrintPadded(*ctx->out, line->text ? line->text : "", ctx->width);
+    ctx->out->print(F("\\033[0m"));
+}
+
+static display_ops_t const ANSI_DISPLAY_OPS = {
+    &ansiClear,
+    0,
+    &ansiFlush,
+    &ansiRenderLine
+};
+
+static display_t make_ansi_print_display(ansi_display_ctx_t &ctx, Print &out, uint8_t width, uint8_t height, uint8_t originRow, uint8_t originCol) {
+    ctx.out = &out;
+    ctx.width = width;
+    ctx.height = height;
+    ctx.originRow = originRow;
+    ctx.originCol = originCol;
+    ctx.begun = false;
+    return make_display(width, height, &ctx, &ANSI_DISPLAY_OPS);
+}
+
+void setup() {
+    Serial.begin(${settings.serialBaud});
+    while (!Serial) {
+    }
+
+    input_source_t input = make_serial_keys_input(serialInput);
+    display_t display = make_ansi_print_display(ansiDisplay, Serial, ${width}, ${height}, ${settings.originRow}, ${settings.originCol});
+    menuRuntime = menu_runtime_t::make(${menuName}, display, input, false);
+    menuRuntime.set_show_title(true);
+    menuRuntime.set_show_breadcrumbs(true);${navigationSetupCode("menuRuntime")}
+    menuRuntime.begin();
+}
+
+void loop() {
+    menuRuntime.service();
+}
+`;
+}
+
 function generateStdioProgram() {
   const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
+  const settings = settingsForProfile("desktop-stdio");
   return `#include "BetterMenu.h"
 
 #include <stdint.h>
@@ -1308,7 +1759,7 @@ static choice_t readChoice(void *) {
 
 int main(void) {
     input_source_t input = make_event_input(keyInput, 0, readChoice);
-    display_t display = make_callback_display(60, 8, displayClear, displayWriteLine, displayFlush);
+    display_t display = make_callback_display(${settings.width}, ${settings.height}, displayClear, displayWriteLine, displayFlush);
 
     runtime = menu_runtime_t::make(${menuName}, display, input, false);
     runtime.set_show_title(true);
@@ -1904,7 +2355,7 @@ static void bmDrawIcon(Adafruit_GFX &gfx, int16_t x, int16_t y, const BMIconAsse
 
 function generateAdafruitSketch() {
   const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
-  const settings = normalizeTargetSettings(model.targetSettings);
+  const settings = settingsForProfile("adafruit-ili9341-320x240-spi");
   const profile = targetProfileById(settings.profileId);
   return `#include <SPI.h>
 #include <Adafruit_GFX.h>
@@ -2104,7 +2555,7 @@ static display_ops_t const ADAFRUIT_DISPLAY_OPS = {
 };
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(${settings.serialBaud});
     while (!Serial) {
     }
     ${settings.displayObject}.begin();
@@ -2137,6 +2588,7 @@ function generateTargetPackageFiles(files) {
     files: {
       "BetterMenuDeclaration.h": generateFirmwareDeclaration(),
       "BetterMenuSerialDemo.ino": generateFirmwareSketch(),
+      "BetterMenuAnsiSerialDemo.ino": files.ansiSketch,
       "BetterMenuStdioDemo.cpp": generateStdioProgram(),
       "bettermenu_wasm.cpp": files.bridge,
       "web-package-manifest.json": generateWebPackageFiles(files.bridge),
@@ -2337,9 +2789,17 @@ function formatPreviewValue(item, value) {
 }
 
 function previewChoice(choice) {
+  const before = previewSignature();
   const menuId = currentPreviewMenuId();
   const rows = visibleItemsForMenu(menuId);
-  if (!rows.length) return;
+  if (!rows.length) {
+    if ((choice === Choice.Cancel || choice === Choice.Left) && preview.stack.length > 1) {
+      preview.stack.pop();
+    }
+    preview.needsRender = preview.needsRender || before !== previewSignature();
+    renderPreview();
+    return;
+  }
   const selected = previewSelectedFor(menuId, rows.length);
   const item = rows[selected];
   if (preview.editingItemId) {
@@ -2352,15 +2812,14 @@ function previewChoice(choice) {
     } else if (choice === Choice.Cancel) {
       cancelPreviewEdit();
     }
+    preview.needsRender = preview.needsRender || before !== previewSignature();
     renderPreview();
     return;
   }
   if (choice === Choice.Up) {
-    const next = model.targetSettings.navigationWrap ? (selected + rows.length - 1) % rows.length : Math.max(0, selected - 1);
-    setPreviewSelected(menuId, next, rows.length);
+    setPreviewSelected(menuId, nextSelectableIndex(rows, selected, -1, model.targetSettings.navigationWrap), rows.length);
   } else if (choice === Choice.Down) {
-    const next = model.targetSettings.navigationWrap ? (selected + 1) % rows.length : Math.min(rows.length - 1, selected + 1);
-    setPreviewSelected(menuId, next, rows.length);
+    setPreviewSelected(menuId, nextSelectableIndex(rows, selected, 1, model.targetSettings.navigationWrap), rows.length);
   } else if (choice === Choice.Cancel) {
     if (preview.stack.length > 1) preview.stack.pop();
   } else if (choice === Choice.Left) {
@@ -2370,6 +2829,7 @@ function previewChoice(choice) {
   } else if (choice === Choice.Select) {
     if (item) activatePreviewItem(item);
   }
+  preview.needsRender = preview.needsRender || before !== previewSignature();
   renderPreview();
 }
 
@@ -2435,6 +2895,7 @@ function adjustPreviewValue(item, direction) {
   const min = numberOr(item.min, -2147483648);
   const max = numberOr(item.max, 2147483647);
   const next = clamp(numberOr(preview.values[key], 0) + direction * step, min, max);
+  if (next === preview.values[key]) return;
   preview.values[key] = next;
   preview.lastAction = `${item.label} changed`;
 }
@@ -2551,6 +3012,7 @@ function outputFilename() {
   const map = {
     firmwareDeclaration: "BetterMenuDeclaration.h",
     firmwareSketch: "BetterMenuSerialDemo.ino",
+    ansiSketch: "BetterMenuAnsiSerialDemo.ino",
     stdioProgram: "BetterMenuStdioDemo.cpp",
     wasmBridgeCpp: "bettermenu_wasm.cpp",
     webPackageFiles: "web-package-manifest.json",
@@ -2744,13 +3206,14 @@ function uniqueAssetId(baseId) {
 }
 
 function updateTargetSetting(prop, value) {
-  if (["width", "height", "rotation"].includes(prop)) {
+  if (["width", "height", "rotation", "originRow", "originCol", "serialBaud"].includes(prop)) {
     model.targetSettings[prop] = numberOr(value, 0);
   } else {
     model.targetSettings[prop] = value;
   }
   model.targetSettings = normalizeTargetSettings(model.targetSettings);
   model.previewSettings.skinId = model.targetSettings.skinId;
+  resetPreviewOutput();
   renderAll();
 }
 
@@ -2834,6 +3297,7 @@ function installEventHandlers() {
   els.targetProfile.addEventListener("change", () => {
     model.targetSettings = defaultTargetSettings(els.targetProfile.value);
     model.previewSettings.skinId = model.targetSettings.skinId;
+    resetPreviewOutput();
     renderAll();
   });
   els.targetSkin.addEventListener("change", () => updateTargetSetting("skinId", els.targetSkin.value));
@@ -2874,7 +3338,12 @@ function installEventHandlers() {
   els.previewMenu.addEventListener("click", (event) => {
     const row = event.target.closest("[data-preview-index]");
     if (!row) return;
-    setPreviewSelected(currentPreviewMenuId(), Number(row.dataset.previewIndex), visibleItemsForMenu(currentPreviewMenuId()).length);
+    const menuId = currentPreviewMenuId();
+    const rows = visibleItemsForMenu(menuId);
+    const index = Number(row.dataset.previewIndex);
+    const item = rows[index];
+    if (!item || isDisabled(item)) return;
+    setPreviewSelected(menuId, index, rows.length);
     previewChoice(Choice.Select);
   });
   els.outputSelect.addEventListener("change", renderOutput);

@@ -16,13 +16,40 @@ import {
 
 assert.equal(targetProfileById("arduino-serial").capabilities.text, true);
 assert.equal(targetProfileById("adafruit-ili9341-320x240-spi").capabilities.bitmap, true);
-assert.equal(TARGET_PROFILES.length, 4);
+assert.equal(TARGET_PROFILES.length, 5);
+assert.equal(targetProfileById("arduino-serial").previewRendererId, "serial-stream");
+assert.equal(targetProfileById("arduino-ansi-serial").previewRendererId, "ansi-terminal");
+assert.equal(targetProfileById("desktop-stdio").previewRendererId, "stdio-screen");
+assert.equal(targetProfileById("web-dom-wasm").previewRendererId, "web-dom");
+assert.equal(targetProfileById("adafruit-ili9341-320x240-spi").previewRendererId, "graphical-viewport");
+
+const serialDefaults = defaultTargetSettings("arduino-serial");
+assert.equal(serialDefaults.width, 32);
+assert.equal(serialDefaults.height, 8);
+assert.equal(serialDefaults.serialBaud, 115200);
+assert.equal(serialDefaults.serialAutoscroll, true);
+assert.equal(serialDefaults.serialTimestamps, false);
+
+const ansiDefaults = defaultTargetSettings("arduino-ansi-serial");
+assert.equal(ansiDefaults.width, 48);
+assert.equal(ansiDefaults.height, 8);
+assert.equal(ansiDefaults.originRow, 1);
+assert.equal(ansiDefaults.originCol, 1);
+assert.equal(ansiDefaults.serialBaud, 115200);
+assert.equal(ansiDefaults.ansiColor, true);
+assert.equal(ansiDefaults.ansiHideCursor, true);
+assert.equal(ansiDefaults.ansiClearOnBegin, true);
+
+const stdioDefaults = defaultTargetSettings("desktop-stdio");
+assert.equal(stdioDefaults.width, 60);
+assert.equal(stdioDefaults.height, 8);
 
 const adafruitDefaults = defaultTargetSettings("adafruit-ili9341-320x240-spi");
 assert.equal(adafruitDefaults.width, 320);
 assert.equal(adafruitDefaults.height, 240);
 assert.equal(adafruitDefaults.pins.cs, "TFT_CS");
 assert.equal(adafruitDefaults.navigationWrap, false);
+assert.equal(adafruitDefaults.serialBaud, 115200);
 
 const normalized = normalizeTargetSettings({
   profileId: "adafruit-ili9341-320x240-spi",
@@ -38,11 +65,18 @@ assert.equal(normalized.navigationWrap, false);
 
 const wrapNavigation = normalizeTargetSettings({
   profileId: "arduino-serial",
-  navigationWrap: true
+  navigationWrap: true,
+  serialBaud: "57600",
+  serialAutoscroll: false,
+  serialTimestamps: true
 });
 assert.equal(wrapNavigation.navigationWrap, true);
+assert.equal(wrapNavigation.serialBaud, 57600);
+assert.equal(wrapNavigation.serialAutoscroll, false);
+assert.equal(wrapNavigation.serialTimestamps, true);
 
 assert.match(profileInstructions(targetProfileById("desktop-stdio")).join("\n"), /getchar/);
+assert.match(profileInstructions(targetProfileById("arduino-ansi-serial")).join("\n"), /ANSI terminal/);
 
 const safeSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/></svg>`;
 const sanitized = sanitizeSvgSource(safeSvg);

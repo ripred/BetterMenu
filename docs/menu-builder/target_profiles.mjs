@@ -4,9 +4,11 @@ export const TARGET_PROFILES = [
     label: "Arduino Serial",
     family: "Text",
     defaultSkinId: "text-rows",
+    previewRendererId: "serial-stream",
     capabilities: {
       text: true,
       graphical: false,
+      terminal: false,
       color: false,
       monochrome: false,
       bitmap: false,
@@ -19,16 +21,57 @@ export const TARGET_PROFILES = [
     dependencies: ["Arduino core"],
     input: "Serial keys through make_serial_keys_input",
     display: "Print display through make_print_display",
-    memory: "Assets are ignored because this is a text target."
+    memory: "Assets are ignored because this is a text target.",
+    defaults: {
+      width: 32,
+      height: 8,
+      serialBaud: 115200
+    }
+  },
+  {
+    id: "arduino-ansi-serial",
+    label: "ANSI Serial Terminal",
+    family: "Terminal",
+    defaultSkinId: "text-rows",
+    previewRendererId: "ansi-terminal",
+    capabilities: {
+      text: true,
+      graphical: false,
+      terminal: true,
+      color: true,
+      monochrome: false,
+      bitmap: false,
+      mask: false,
+      statusWidgets: false,
+      customInput: true
+    },
+    files: ["BetterMenuAnsiSerialDemo.ino"],
+    includes: ["BetterMenu.h"],
+    dependencies: ["Arduino core", "ANSI-capable serial terminal"],
+    input: "Serial keys through make_serial_keys_input",
+    display: "ANSI terminal region over Arduino Print",
+    memory: "Assets are ignored because this is a terminal text target.",
+    defaults: {
+      width: 48,
+      height: 8,
+      originRow: 1,
+      originCol: 1,
+      serialBaud: 115200,
+      ansiColor: true,
+      ansiHideCursor: true,
+      ansiClearOnBegin: true
+    }
   },
   {
     id: "desktop-stdio",
     label: "Desktop C++ stdio",
     family: "Text",
     defaultSkinId: "text-rows",
+    previewRendererId: "stdio-screen",
     capabilities: {
       text: true,
       graphical: false,
+      terminal: false,
       color: false,
       monochrome: false,
       bitmap: false,
@@ -41,16 +84,22 @@ export const TARGET_PROFILES = [
     dependencies: ["C++11 compiler"],
     input: "getchar key loop",
     display: "callback display using puts/fputs",
-    memory: "Assets are ignored because this is a text target."
+    memory: "Assets are ignored because this is a text target.",
+    defaults: {
+      width: 60,
+      height: 8
+    }
   },
   {
     id: "web-dom-wasm",
     label: "Web DOM + WebAssembly",
     family: "Web",
     defaultSkinId: "rover-console",
+    previewRendererId: "web-dom",
     capabilities: {
       text: true,
       graphical: true,
+      terminal: false,
       color: true,
       monochrome: false,
       bitmap: true,
@@ -70,9 +119,11 @@ export const TARGET_PROFILES = [
     label: "Adafruit ILI9341 320x240 SPI",
     family: "Adafruit_GFX",
     defaultSkinId: "rover-console",
+    previewRendererId: "graphical-viewport",
     capabilities: {
       text: true,
       graphical: true,
+      terminal: false,
       color: true,
       monochrome: false,
       bitmap: true,
@@ -95,7 +146,8 @@ export const TARGET_PROFILES = [
         cs: "TFT_CS",
         dc: "TFT_DC",
         rst: "TFT_RST"
-      }
+      },
+      serialBaud: 115200
     }
   }
 ];
@@ -138,6 +190,9 @@ export function defaultTargetSettings(profileId = "arduino-serial") {
     width: defaults.width || 0,
     height: defaults.height || 0,
     rotation: defaults.rotation || 0,
+    originRow: defaults.originRow || 1,
+    originCol: defaults.originCol || 1,
+    serialBaud: defaults.serialBaud || 115200,
     displayObject: defaults.displayObject || "display",
     pins: {
       cs: defaults.pins?.cs || "TFT_CS",
@@ -146,6 +201,11 @@ export function defaultTargetSettings(profileId = "arduino-serial") {
     },
     inputAdapter: profile.id === "desktop-stdio" ? "stdio-keys" : "serial-keys",
     navigationWrap: false,
+    serialAutoscroll: true,
+    serialTimestamps: false,
+    ansiColor: defaults.ansiColor !== undefined ? Boolean(defaults.ansiColor) : false,
+    ansiHideCursor: defaults.ansiHideCursor !== undefined ? Boolean(defaults.ansiHideCursor) : false,
+    ansiClearOnBegin: defaults.ansiClearOnBegin !== undefined ? Boolean(defaults.ansiClearOnBegin) : false,
     assetExport: {
       includeUnused: false,
       iconSize: 18,
@@ -176,11 +236,19 @@ export function normalizeTargetSettings(input) {
   merged.width = nonNegativeNumber(merged.width, base.width);
   merged.height = nonNegativeNumber(merged.height, base.height);
   merged.rotation = nonNegativeNumber(merged.rotation, base.rotation);
+  merged.originRow = positiveNumber(merged.originRow, base.originRow);
+  merged.originCol = positiveNumber(merged.originCol, base.originCol);
+  merged.serialBaud = positiveNumber(merged.serialBaud, base.serialBaud);
   merged.displayObject = safeName(merged.displayObject || base.displayObject || "display");
   merged.pins.cs = safeName(merged.pins.cs || "TFT_CS");
   merged.pins.dc = safeName(merged.pins.dc || "TFT_DC");
   merged.pins.rst = safeName(merged.pins.rst || "TFT_RST");
   merged.navigationWrap = Boolean(merged.navigationWrap);
+  merged.serialAutoscroll = Boolean(merged.serialAutoscroll);
+  merged.serialTimestamps = Boolean(merged.serialTimestamps);
+  merged.ansiColor = Boolean(merged.ansiColor);
+  merged.ansiHideCursor = Boolean(merged.ansiHideCursor);
+  merged.ansiClearOnBegin = Boolean(merged.ansiClearOnBegin);
   return merged;
 }
 
@@ -199,6 +267,11 @@ export function profileInstructions(profile) {
 function nonNegativeNumber(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : fallback;
+}
+
+function positiveNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 1 ? number : fallback;
 }
 
 function safeName(value) {

@@ -15,11 +15,11 @@ The menu tree is defined in one expression. Submenus are stored inline by value,
 
 ## New Online Builder!
 
-This BetterMenu repository itself now includes a static browser-based builder for drafting menu declarations and exporting starter code for Arduino Serial, desktop C++ stdio, and WebAssembly/DOM adapter projects:
+This BetterMenu repository itself now includes a static browser-based builder for drafting menu declarations and exporting starter code for Arduino Serial, ANSI Serial terminals, desktop C++ stdio, WebAssembly/DOM, and Adafruit ILI9341 adapter projects:
 
 - [Open the BetterMenu Builder](https://ripred.github.io/BetterMenu/menu-builder/)
 - Start from an empty menu or load the RoverConsole sample to inspect a complete nested declaration.
-- Export declaration-only code, complete Serial/stdio starter programs, or web adapter source files.
+- Export declaration-only code, complete text-terminal starter programs, web adapter source files, or a graphical Adafruit_GFX sketch package.
 
 The builder is export-only. It does not require local-file access, user-supplied compilers, accounts, or a backend.
 
@@ -103,9 +103,11 @@ The convenience helpers with no explicit context use fixed internal singleton st
 - `examples/ButtonGesturesSerial`: Serial output with one physical pushbutton using the optional ButtonGestures library as a non-blocking gesture input adapter.
 - `examples/MultiLevelSingleDeclaration`: larger nested Serial menu using one declaration.
 - `examples/ComprehensiveFeatureDemo`: Serial-only feature reference showing every entry type, decorator, runtime option, rich render metadata, persistence hook, and event-style input. This intentionally consumes most of the SRAM on smaller MCUs such as the Uno and Nano; it is meant as a practical copy/paste source for grabbing specific use cases, not as a practical project by itself.
+- `examples/AnsiSerialTerminal`: Serial-key input with ANSI terminal output using cursor positioning, bounded row clearing, and selected/editing/disabled styles.
 - `examples/HD44780Buttons`: 1602/HD44780 LCD output with six individual active-low navigation buttons.
 - `examples/CYDAuroraPanel`: 320x240 CYD/ESP32 graphical menu using a custom `render_line` adapter and TFT_eSPI. The sketch uses Serial keys for input so the display adapter stays independent of any one touch-controller wiring.
 - `examples/CYDRoverConsole`: denser 320x240 CYD/ESP32 graphical menu that passes runtime context into the display adapter to draw a proportional faux scrollbar and richer row states.
+- `examples/WebAssemblyRoverConsole`: notes for the hosted WebAssembly/DOM adapter demo in `docs/web-adapter`.
 
 ## Entry Types
 
@@ -147,7 +149,7 @@ Use `menuRuntime.set_persistence(load, save, ctx)` when a project wants shared p
 
 Displays are provided through `display_t`. The preferred adapter form is a small `display_ops_t` table plus a `void *ctx`, so display state can live in user code instead of hidden globals. `make_print_display()` adapts any Arduino `Print` output with caller-owned `print_display_ctx_t` storage. `make_serial_display()` is included as a fixed singleton convenience wrapper for Serial Monitor output. Older contextless callbacks are still supported through `make_callback_display()`. A display width of `0` uses the `MENU_MAX_LINE` buffer limit; a display height of `0` renders all visible menu items.
 
-For graphical or touch displays, `display_ops_t::render_line` can receive `menu_render_line_t` metadata for each title, item, and blank row. The text line is still supplied, but the renderer also gets item index, entry type, selected/editing/disabled flags, scroll hints, child-menu hints, and back availability. Render callbacks should use or copy the text during the callback; the pointer is not storage for later use. `examples/CYDAuroraPanel` shows the simplest graphical pattern, while `examples/CYDRoverConsole` shows an advanced adapter that also uses caller-supplied display context to inspect the active runtime and draw proportional scroll position.
+For richer displays, `display_ops_t::render_line` can receive `menu_render_line_t` metadata for each title, item, and blank row. The text line is still supplied, but the renderer also gets item index, entry type, selected/editing/disabled flags, scroll hints, child-menu hints, and back availability. Render callbacks should use or copy the text during the callback; the pointer is not storage for later use. `examples/AnsiSerialTerminal` uses that path for a fixed terminal region, `examples/CYDAuroraPanel` shows the simplest graphical pattern, and `examples/CYDRoverConsole` shows an advanced adapter that also uses caller-supplied display context to inspect the active runtime and draw proportional scroll position.
 
 Inputs can use the legacy `input_fptr_t` callback, a context-aware `make_event_input()` provider that returns one `choice_t` or `menu_event_t` event at a time, or an `input_source_t` provider with up, down, select, cancel, left, and right checks. Built-in providers are included for Serial keys, any Arduino `Stream`, and debounced buttons.
 
