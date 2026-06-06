@@ -602,14 +602,19 @@ function renderItemList() {
     text.type = "button";
     text.className = "item-pick";
     text.dataset.itemId = item.id;
-    text.innerHTML = `<strong>${escapeHtml(item.label || "(untitled)")}</strong><span class="meta">${typeLabel(item.type)}${decoratorSummary(item)}</span>`;
+    const label = document.createElement("strong");
+    label.textContent = item.label || "(untitled)";
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    meta.textContent = `${typeLabel(item.type)}${decoratorSummary(item)}`;
+    text.append(label, meta);
 
     const controls = document.createElement("span");
     controls.className = "row-actions";
-    controls.innerHTML = `
-      <button type="button" data-move="up" data-item-id="${item.id}" ${index === 0 ? "disabled" : ""} aria-label="Move up">↑</button>
-      <button type="button" data-move="down" data-item-id="${item.id}" ${index === menu.itemIds.length - 1 ? "disabled" : ""} aria-label="Move down">↓</button>
-    `;
+    controls.append(
+      moveItemButton("up", item.id, index === 0, "Move up", "↑"),
+      moveItemButton("down", item.id, index === menu.itemIds.length - 1, "Move down", "↓")
+    );
     row.append(text, controls);
     els.itemList.append(row);
   });
@@ -624,36 +629,56 @@ function renderItemEditor() {
     return;
   }
   els.editorTitle.textContent = item.label || "Item settings";
-  els.itemEditor.innerHTML = `
-    <div class="form-grid">
-      ${fieldHtml("label", "Label", item.label || "")}
-      <div class="field">
-        <label for="item-type">Type</label>
-        <select id="item-type" data-prop="type">
-          ${itemTypes.map(([value, label]) => `<option value="${value}" ${item.type === value ? "selected" : ""}>${label}</option>`).join("")}
-        </select>
-      </div>
-      ${fieldHtml("icon", "Icon key", item.icon || "")}
-      ${assetSelectHtml(item)}
-      ${fieldHtml("contentTitle", "Content title", item.contentTitle || "")}
-    </div>
-    <div class="field">
-      <label for="contentBody">Content/help text</label>
-      <textarea id="contentBody" data-prop="contentBody" spellcheck="false">${escapeTextarea(item.contentBody || "")}</textarea>
-    </div>
-    ${typeFieldsHtml(item)}
-    <section class="decorator-grid" aria-label="Decorators">
-      ${decoratorTypes.map(([key, macro, role]) => decoratorHtml(item, key, macro, role)).join("")}
-    </section>
-  `;
+  els.itemEditor.textContent = "";
+  const formGrid = document.createElement("div");
+  formGrid.className = "form-grid";
+  formGrid.append(
+    fieldElement("label", "Label", item.label || ""),
+    itemTypeFieldElement(item),
+    fieldElement("icon", "Icon key", item.icon || ""),
+    assetSelectElement(item),
+    fieldElement("contentTitle", "Content title", item.contentTitle || "")
+  );
+  const decoratorGrid = document.createElement("section");
+  decoratorGrid.className = "decorator-grid";
+  decoratorGrid.setAttribute("aria-label", "Decorators");
+  for (const [key, macro, role] of decoratorTypes) {
+    decoratorGrid.append(decoratorElement(item, key, macro, role));
+  }
+  els.itemEditor.append(
+    formGrid,
+    textareaFieldElement("contentBody", "Content/help text", item.contentBody || ""),
+    ...typeFieldElements(item),
+    decoratorGrid
+  );
 }
 
-function assetSelectHtml(item) {
-  const options = [
-    `<option value="" ${item.iconAssetId ? "" : "selected"}>No asset</option>`,
-    ...model.assets.map((asset) => `<option value="${escapeAttr(asset.id)}" ${item.iconAssetId === asset.id ? "selected" : ""}>${escapeHtml(asset.key)}</option>`)
-  ];
-  return `<div class="field"><label for="iconAssetId">Icon asset</label><select id="iconAssetId" data-prop="iconAssetId">${options.join("")}</select></div>`;
+function moveItemButton(direction, itemId, disabled, label, text) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.dataset.move = direction;
+  button.dataset.itemId = itemId;
+  button.disabled = disabled;
+  button.setAttribute("aria-label", label);
+  button.textContent = text;
+  return button;
+}
+
+function assetSelectElement(item) {
+  const field = document.createElement("div");
+  field.className = "field";
+  const label = document.createElement("label");
+  label.setAttribute("for", "iconAssetId");
+  label.textContent = "Icon asset";
+  const select = document.createElement("select");
+  select.id = "iconAssetId";
+  select.dataset.prop = "iconAssetId";
+  select.append(optionElement("", "No asset", !item.iconAssetId));
+  for (const asset of model.assets) {
+    select.append(optionElement(asset.id, asset.key, item.iconAssetId === asset.id));
+  }
+  field.append(label, select);
+  return field;
 }
 
 function renderAssetManager() {
@@ -677,14 +702,23 @@ function renderAssetManager() {
       preview.style.setProperty("--asset-url", `url("${cssUrl.replace(/"/g, "%22")}")`);
     }
     const info = document.createElement("div");
-    info.innerHTML = `
-      <strong>${escapeHtml(asset.key)}</strong>
-      <span class="meta">${escapeHtml(asset.kind)} · ${numberOr(asset.encoded?.width, asset.width)}x${numberOr(asset.encoded?.height, asset.height)} · used ${counts[asset.id] || 0}x</span>
-      <span class="meta">${asset.encoded ? `${asset.encoded.flashBytes || 0} bytes estimated Adafruit asset data` : "encoding pending"}</span>
-    `;
+    const name = document.createElement("strong");
+    name.textContent = asset.key;
+    const dimensions = document.createElement("span");
+    dimensions.className = "meta";
+    dimensions.textContent = `${asset.kind} · ${numberOr(asset.encoded?.width, asset.width)}x${numberOr(asset.encoded?.height, asset.height)} · used ${counts[asset.id] || 0}x`;
+    const encoding = document.createElement("span");
+    encoding.className = "meta";
+    encoding.textContent = asset.encoded ? `${asset.encoded.flashBytes || 0} bytes estimated Adafruit asset data` : "encoding pending";
+    info.append(name, dimensions, encoding);
     const controls = document.createElement("div");
     controls.className = "row-actions";
-    controls.innerHTML = `<button type="button" data-delete-asset="${escapeAttr(asset.id)}" aria-label="Delete asset">Delete</button>`;
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.dataset.deleteAsset = asset.id;
+    deleteButton.setAttribute("aria-label", "Delete asset");
+    deleteButton.textContent = "Delete";
+    controls.append(deleteButton);
     row.append(preview, info, controls);
     els.assetList.append(row);
   }
@@ -748,19 +782,33 @@ function renderTargetSettings() {
   els.targetAnsiClearOnBegin.checked = Boolean(settings.ansiClearOnBegin);
   updateTargetSettingVisibility(settings, profile);
   updateInputSettingVisibility(settings.inputAdapter, profile);
-  els.targetSummary.innerHTML = `
-    <section>
-      <h3>${escapeHtml(profile.label)}</h3>
-      <ul>
-        ${profileInstructions(profile).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
-        <li>Selected input adapter: ${escapeHtml(inputAdapterLabel(settings.inputAdapter))}.</li>
-        <li>Navigation: ${settings.navigationWrap ? "wraps from either menu end to the other" : "stops at the first and last selectable rows"}.</li>
-        ${targetUsesSerialBaud(settings, profile) ? `<li>Serial baud: ${settings.serialBaud}.</li>` : ""}
-        ${profile.previewRendererId === "serial-stream" ? `<li>Serial preview: ${settings.serialAutoscroll ? "autoscroll on" : "autoscroll off"}, timestamps ${settings.serialTimestamps ? "on" : "off"}.</li>` : ""}
-        ${profile.capabilities.terminal ? `<li>Terminal region: ${settings.width}x${settings.height} at row ${settings.originRow}, column ${settings.originCol}.</li>` : ""}
-      </ul>
-    </section>
-  `;
+  renderTargetSummary(settings, profile);
+}
+
+function renderTargetSummary(settings, profile) {
+  els.targetSummary.textContent = "";
+  const section = document.createElement("section");
+  const title = document.createElement("h3");
+  title.textContent = profile.label;
+  const list = document.createElement("ul");
+  for (const line of profileInstructions(profile)) {
+    list.append(listItem(line));
+  }
+  list.append(
+    listItem(`Selected input adapter: ${inputAdapterLabel(settings.inputAdapter)}.`),
+    listItem(`Navigation: ${settings.navigationWrap ? "wraps from either menu end to the other" : "stops at the first and last selectable rows"}.`)
+  );
+  if (targetUsesSerialBaud(settings, profile)) {
+    list.append(listItem(`Serial baud: ${settings.serialBaud}.`));
+  }
+  if (profile.previewRendererId === "serial-stream") {
+    list.append(listItem(`Serial preview: ${settings.serialAutoscroll ? "autoscroll on" : "autoscroll off"}, timestamps ${settings.serialTimestamps ? "on" : "off"}.`));
+  }
+  if (profile.capabilities.terminal) {
+    list.append(listItem(`Terminal region: ${settings.width}x${settings.height} at row ${settings.originRow}, column ${settings.originCol}.`));
+  }
+  section.append(title, list);
+  els.targetSummary.append(section);
 }
 
 function updateTargetSettingVisibility(settings, profile) {
@@ -853,126 +901,236 @@ function renderStatusWidgetEditor() {
   const battery = firstStatusWidget(model.statusWidgets, "battery", { enabledOnly: false }) || defaultStatusWidget("battery");
   const chipEnabled = Boolean(firstStatusWidget(model.statusWidgets, "chip"));
   const batteryEnabled = Boolean(firstStatusWidget(model.statusWidgets, "battery"));
-  els.statusWidgetEditor.innerHTML = `
-    <div class="status-widget-grid">
-      ${statusWidgetCardHtml("chip", "Chip", chip, chipEnabled, [
-        ["label", "Label", "text"],
-        ["sourceSymbol", "Source symbol", "text"],
-        ["falseLabel", "False label", "text"],
-        ["trueLabel", "True label", "text"]
-      ])}
-      ${statusWidgetCardHtml("battery", "Battery", battery, batteryEnabled, [
-        ["label", "Label", "text"],
-        ["sourceSymbol", "Source symbol", "text"],
-        ["min", "Min", "number"],
-        ["max", "Max", "number"]
-      ])}
-    </div>
-  `;
+  els.statusWidgetEditor.textContent = "";
+  const grid = document.createElement("div");
+  grid.className = "status-widget-grid";
+  grid.append(
+    statusWidgetCardElement("chip", "Chip", chip, chipEnabled, [
+      ["label", "Label", "text"],
+      ["sourceSymbol", "Source symbol", "text"],
+      ["falseLabel", "False label", "text"],
+      ["trueLabel", "True label", "text"]
+    ]),
+    statusWidgetCardElement("battery", "Battery", battery, batteryEnabled, [
+      ["label", "Label", "text"],
+      ["sourceSymbol", "Source symbol", "text"],
+      ["min", "Min", "number"],
+      ["max", "Max", "number"]
+    ])
+  );
+  els.statusWidgetEditor.append(grid);
 }
 
-function statusWidgetCardHtml(type, title, widget, enabled, fields) {
-  return `<article class="status-widget-card${enabled ? "" : " disabled"}">
-    <div class="panel-heading">
-      <div>
-        <p class="panel-label">Status widget</p>
-        <h3>${escapeHtml(title)}</h3>
-      </div>
-      <label class="checkline">
-        <input type="checkbox" data-status-enabled="${escapeAttr(type)}" ${enabled ? "checked" : ""}>
-        Enabled
-      </label>
-    </div>
-    <div class="form-grid">
-      ${fields.map(([prop, label, inputType]) => statusWidgetFieldHtml(type, prop, label, widget[prop], inputType, !enabled)).join("")}
-    </div>
-  </article>`;
+function statusWidgetCardElement(type, title, widget, enabled, fields) {
+  const card = document.createElement("article");
+  card.className = `status-widget-card${enabled ? "" : " disabled"}`;
+  const heading = document.createElement("div");
+  heading.className = "panel-heading";
+  const titleBlock = document.createElement("div");
+  const label = document.createElement("p");
+  label.className = "panel-label";
+  label.textContent = "Status widget";
+  const headingTitle = document.createElement("h3");
+  headingTitle.textContent = title;
+  titleBlock.append(label, headingTitle);
+  const toggle = document.createElement("label");
+  toggle.className = "checkline";
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.dataset.statusEnabled = type;
+  checkbox.checked = enabled;
+  toggle.append(checkbox, " Enabled");
+  heading.append(titleBlock, toggle);
+  const grid = document.createElement("div");
+  grid.className = "form-grid";
+  for (const [prop, fieldLabel, inputType] of fields) {
+    grid.append(statusWidgetFieldElement(type, prop, fieldLabel, widget[prop], inputType, !enabled));
+  }
+  card.append(heading, grid);
+  return card;
 }
 
-function statusWidgetFieldHtml(type, prop, label, value, inputType, disabled) {
+function statusWidgetFieldElement(type, prop, labelText, value, inputType, disabled) {
   const id = `status-${type}-${prop}`;
-  return `<div class="field">
-    <label for="${id}">${escapeHtml(label)}</label>
-    <input id="${id}" data-status-type="${escapeAttr(type)}" data-status-prop="${escapeAttr(prop)}" type="${escapeAttr(inputType)}" value="${escapeAttr(value ?? "")}" ${disabled ? "disabled" : ""}>
-  </div>`;
+  const field = document.createElement("div");
+  field.className = "field";
+  const label = document.createElement("label");
+  label.setAttribute("for", id);
+  label.textContent = labelText;
+  const input = document.createElement("input");
+  input.id = id;
+  input.dataset.statusType = type;
+  input.dataset.statusProp = prop;
+  input.type = inputType;
+  input.value = value ?? "";
+  input.disabled = disabled;
+  field.append(label, input);
+  return field;
 }
 
-function typeFieldsHtml(item) {
+function typeFieldElements(item) {
   if (item.type === "int") {
-    return `<div class="form-grid">
-      ${fieldHtml("stateSymbol", "Backing int symbol", item.stateSymbol || "")}
-      ${numberFieldHtml("initial", "Initial value", item.initial ?? 0)}
-      ${numberFieldHtml("min", "Min", item.min ?? 0)}
-      ${numberFieldHtml("max", "Max", item.max ?? 100)}
-      ${numberFieldHtml("step", "Step", item.step ?? 1)}
-    </div>`;
+    return [formGridElement(
+      fieldElement("stateSymbol", "Backing int symbol", item.stateSymbol || ""),
+      numberFieldElement("initial", "Initial value", item.initial ?? 0),
+      numberFieldElement("min", "Min", item.min ?? 0),
+      numberFieldElement("max", "Max", item.max ?? 100),
+      numberFieldElement("step", "Step", item.step ?? 1)
+    )];
   }
   if (item.type === "bool") {
-    return `<div class="form-grid">
-      ${fieldHtml("stateSymbol", "Backing bool symbol", item.stateSymbol || "")}
-      ${fieldHtml("falseLabel", "False label", item.falseLabel || "Off")}
-      ${fieldHtml("trueLabel", "True label", item.trueLabel || "On")}
-      <label class="checkline editor-check"><input type="checkbox" data-prop="initial" ${item.initial ? "checked" : ""}> Initial true</label>
-    </div>`;
+    const initial = document.createElement("label");
+    initial.className = "checkline editor-check";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.dataset.prop = "initial";
+    checkbox.checked = Boolean(item.initial);
+    initial.append(checkbox, " Initial true");
+    return [formGridElement(
+      fieldElement("stateSymbol", "Backing bool symbol", item.stateSymbol || ""),
+      fieldElement("falseLabel", "False label", item.falseLabel || "Off"),
+      fieldElement("trueLabel", "True label", item.trueLabel || "On"),
+      initial
+    )];
   }
   if (item.type === "select") {
-    return `<div class="form-grid">
-      ${fieldHtml("stateSymbol", "Backing int symbol", item.stateSymbol || "")}
-      ${numberFieldHtml("initial", "Initial value", item.initial ?? 0)}
-    </div>
-    <div class="field">
-      <label for="choices">Choices, one per line as Label=value</label>
-      <textarea id="choices" data-prop="choices" spellcheck="false">${escapeTextarea(choicesToText(item.choices || []))}</textarea>
-    </div>`;
+    return [
+      formGridElement(
+        fieldElement("stateSymbol", "Backing int symbol", item.stateSymbol || ""),
+        numberFieldElement("initial", "Initial value", item.initial ?? 0)
+      ),
+      textareaFieldElement("choices", "Choices, one per line as Label=value", choicesToText(item.choices || []))
+    ];
   }
   if (item.type === "value") {
-    return `<div class="form-grid">
-      ${fieldHtml("getter", "Getter symbol", item.getter || "getInt")}
-      ${fieldHtml("setter", "Setter symbol, blank for read-only", item.setter || "")}
-      ${fieldHtml("ctx", "Context expression", item.ctx || "0")}
-      ${numberFieldHtml("min", "Min", item.min ?? 0)}
-      ${numberFieldHtml("max", "Max", item.max ?? 100)}
-      ${numberFieldHtml("step", "Step", item.step ?? 1)}
-    </div>`;
+    return [formGridElement(
+      fieldElement("getter", "Getter symbol", item.getter || "getInt"),
+      fieldElement("setter", "Setter symbol, blank for read-only", item.setter || ""),
+      fieldElement("ctx", "Context expression", item.ctx || "0"),
+      numberFieldElement("min", "Min", item.min ?? 0),
+      numberFieldElement("max", "Max", item.max ?? 100),
+      numberFieldElement("step", "Step", item.step ?? 1)
+    )];
   }
   if (item.type === "func") {
-    return `<div class="form-grid">
-      ${fieldHtml("actionSymbol", "Callback symbol", item.actionSymbol || "action")}
-    </div>`;
+    return [formGridElement(fieldElement("actionSymbol", "Callback symbol", item.actionSymbol || "action"))];
   }
   const child = byId(model.menus, item.childMenuId);
-  return `<div class="form-grid">
-    <div class="field">
-      <label for="childMenuId">Child menu</label>
-      <select id="childMenuId" data-prop="childMenuId">
-        ${model.menus.filter((menu) => menu.id !== selectedMenuId).map((menu) => `<option value="${menu.id}" ${item.childMenuId === menu.id ? "selected" : ""}>${escapeHtml(menu.title)}</option>`).join("")}
-      </select>
-    </div>
-    ${fieldHtml("childTitle", "Child title", child?.title || item.label || "")}
-  </div>`;
+  const childField = document.createElement("div");
+  childField.className = "field";
+  const childLabel = document.createElement("label");
+  childLabel.setAttribute("for", "childMenuId");
+  childLabel.textContent = "Child menu";
+  const childSelect = document.createElement("select");
+  childSelect.id = "childMenuId";
+  childSelect.dataset.prop = "childMenuId";
+  for (const menu of model.menus.filter((entry) => entry.id !== selectedMenuId)) {
+    childSelect.append(optionElement(menu.id, menu.title, item.childMenuId === menu.id));
+  }
+  childField.append(childLabel, childSelect);
+  return [formGridElement(
+    childField,
+    fieldElement("childTitle", "Child title", child?.title || item.label || "")
+  )];
 }
 
-function fieldHtml(prop, label, value) {
-  return `<div class="field"><label for="${prop}">${label}</label><input id="${prop}" data-prop="${prop}" type="text" value="${escapeAttr(value)}"></div>`;
+function formGridElement(...children) {
+  const grid = document.createElement("div");
+  grid.className = "form-grid";
+  grid.append(...children);
+  return grid;
 }
 
-function numberFieldHtml(prop, label, value) {
-  return `<div class="field"><label for="${prop}">${label}</label><input id="${prop}" data-prop="${prop}" type="number" value="${escapeAttr(value)}"></div>`;
+function itemTypeFieldElement(item) {
+  const field = document.createElement("div");
+  field.className = "field";
+  const label = document.createElement("label");
+  label.setAttribute("for", "item-type");
+  label.textContent = "Type";
+  const select = document.createElement("select");
+  select.id = "item-type";
+  select.dataset.prop = "type";
+  for (const [value, typeName] of itemTypes) {
+    select.append(optionElement(value, typeName, item.type === value));
+  }
+  field.append(label, select);
+  return field;
 }
 
-function decoratorHtml(item, key, macro, role) {
+function fieldElement(prop, labelText, value, type = "text") {
+  const field = document.createElement("div");
+  field.className = "field";
+  const label = document.createElement("label");
+  label.setAttribute("for", prop);
+  label.textContent = labelText;
+  const input = document.createElement("input");
+  input.id = prop;
+  input.dataset.prop = prop;
+  input.type = type;
+  input.value = value ?? "";
+  field.append(label, input);
+  return field;
+}
+
+function numberFieldElement(prop, label, value) {
+  return fieldElement(prop, label, value, "number");
+}
+
+function textareaFieldElement(prop, labelText, value) {
+  const field = document.createElement("div");
+  field.className = "field";
+  const label = document.createElement("label");
+  label.setAttribute("for", prop);
+  label.textContent = labelText;
+  const textarea = document.createElement("textarea");
+  textarea.id = prop;
+  textarea.dataset.prop = prop;
+  textarea.spellcheck = false;
+  textarea.value = value ?? "";
+  field.append(label, textarea);
+  return field;
+}
+
+function optionElement(value, label, selected = false) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  option.selected = selected;
+  return option;
+}
+
+function decoratorElement(item, key, macro, role) {
   const dec = item.decorators?.[key] || emptyDecorators()[key];
-  return `<div class="decorator-card">
-    <label class="checkline"><input type="checkbox" data-decorator="${key}" data-decorator-prop="enabled" ${dec.enabled ? "checked" : ""}> ${macro}</label>
-    <div class="field">
-      <label>${role}</label>
-      <input type="text" data-decorator="${key}" data-decorator-prop="symbol" value="${escapeAttr(dec.symbol || "")}">
-    </div>
-    <div class="field">
-      <label>ctx</label>
-      <input type="text" data-decorator="${key}" data-decorator-prop="ctx" value="${escapeAttr(dec.ctx || "0")}">
-    </div>
-  </div>`;
+  const card = document.createElement("div");
+  card.className = "decorator-card";
+  const toggle = document.createElement("label");
+  toggle.className = "checkline";
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.dataset.decorator = key;
+  checkbox.dataset.decoratorProp = "enabled";
+  checkbox.checked = Boolean(dec.enabled);
+  toggle.append(checkbox, ` ${macro}`);
+  card.append(
+    toggle,
+    decoratorFieldElement(key, "symbol", role, dec.symbol || ""),
+    decoratorFieldElement(key, "ctx", "ctx", dec.ctx || "0")
+  );
+  return card;
+}
+
+function decoratorFieldElement(key, prop, labelText, value) {
+  const field = document.createElement("div");
+  field.className = "field";
+  const label = document.createElement("label");
+  label.textContent = labelText;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.dataset.decorator = key;
+  input.dataset.decoratorProp = prop;
+  input.value = value;
+  field.append(label, input);
+  return field;
 }
 
 function renderPreview() {
@@ -1046,7 +1204,10 @@ function renderGraphicalPreview(rendererId) {
 
   const header = document.createElement("div");
   header.className = "preview-header";
-  header.innerHTML = `<span class="breadcrumb">${escapeHtml(menuPathTitle())}</span>${previewStatusHtml()}`;
+  const breadcrumb = document.createElement("span");
+  breadcrumb.className = "breadcrumb";
+  breadcrumb.textContent = menuPathTitle();
+  header.append(breadcrumb, previewStatusElement());
   els.previewMenu.append(header);
 
   const windowSize = Number(model.previewSettings.visibleRows || 5);
@@ -1066,8 +1227,19 @@ function renderGraphicalPreview(rendererId) {
     if (disabled) row.classList.add("disabled");
     if (item.type === "bool" || item.type === "select") row.classList.add("choice");
     const value = previewValueText(item);
-    const meta = graphicalPreview ? "" : `<span class="meta">${typeLabel(item.type)}${assetLabel(item) ? ` · ${escapeHtml(assetLabel(item))}` : ""}</span>`;
-    row.innerHTML = `${previewIconHtml(item)}<span class="row-main"><strong>${escapeHtml(item.label || "(untitled)")}</strong>${meta}</span>${previewValueHtml(item, value)}`;
+    const main = document.createElement("span");
+    main.className = "row-main";
+    const label = document.createElement("strong");
+    label.textContent = item.label || "(untitled)";
+    main.append(label);
+    const itemAssetLabel = assetLabel(item);
+    if (!graphicalPreview) {
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = `${typeLabel(item.type)}${itemAssetLabel ? ` · ${itemAssetLabel}` : ""}`;
+      main.append(meta);
+    }
+    row.append(previewIconElement(item), main, previewValueElement(item, value));
     els.previewMenu.append(row);
   });
   if (rows.length > windowSize) {
@@ -1076,7 +1248,10 @@ function renderGraphicalPreview(rendererId) {
     const denom = Math.max(1, rows.length - windowSize);
     const thumbTop = Math.round(((100 - thumbHeight) * top) / denom);
     scrollbar.className = "preview-scrollbar";
-    scrollbar.innerHTML = `<span style="height:${thumbHeight}%;top:${thumbTop}%"></span>`;
+    const thumb = document.createElement("span");
+    thumb.style.height = `${thumbHeight}%`;
+    thumb.style.top = `${thumbTop}%`;
+    scrollbar.append(thumb);
     els.previewMenu.append(scrollbar);
   }
 
@@ -1328,40 +1503,84 @@ function previewTop(total, selected, windowSize) {
   return clamp(selected - Math.floor(windowSize / 2), 0, total - windowSize);
 }
 
-function previewStatusHtml() {
+function previewStatusElement() {
   const armedWidget = firstStatusWidget(model.statusWidgets, "chip");
   const batteryWidget = firstStatusWidget(model.statusWidgets, "battery");
-  const parts = [];
+  const status = document.createElement("span");
+  status.className = "preview-status";
   if (armedWidget) {
     const armed = Boolean(preview.values[armedWidget.sourceSymbol]);
-    parts.push(`<span class="state-chip ${armed ? "armed" : "ready"}"><span aria-hidden="true"></span>${escapeHtml(armed ? armedWidget.trueLabel || "ARMED" : armedWidget.falseLabel || "READY")}</span>`);
+    const chip = document.createElement("span");
+    chip.className = `state-chip ${armed ? "armed" : "ready"}`;
+    const dot = document.createElement("span");
+    dot.setAttribute("aria-hidden", "true");
+    chip.append(dot, armed ? armedWidget.trueLabel || "ARMED" : armedWidget.falseLabel || "READY");
+    status.append(chip);
   }
   if (batteryWidget) {
     const pct = batteryPercent(preview.values[batteryWidget.sourceSymbol], batteryWidget);
     const tone = pct > 50 ? "good" : (pct > 20 ? "warn" : "low");
-    parts.push(`<span class="battery-meter ${tone}" aria-label="Battery ${pct}%"><span class="battery-percent">${pct}%</span><span class="battery-case"><span class="battery-fill" style="width:${pct}%"></span></span></span>`);
+    const meter = document.createElement("span");
+    meter.className = `battery-meter ${tone}`;
+    meter.setAttribute("aria-label", `Battery ${pct}%`);
+    const percent = document.createElement("span");
+    percent.className = "battery-percent";
+    percent.textContent = `${pct}%`;
+    const batteryCase = document.createElement("span");
+    batteryCase.className = "battery-case";
+    const fill = document.createElement("span");
+    fill.className = "battery-fill";
+    fill.style.width = `${pct}%`;
+    batteryCase.append(fill);
+    meter.append(percent, batteryCase);
+    status.append(meter);
   }
-  if (!parts.length) {
-    parts.push(`<span class="meta">${visibleItemsForMenu(currentPreviewMenuId()).length} rows</span>`);
+  if (!status.childElementCount) {
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    meta.textContent = `${visibleItemsForMenu(currentPreviewMenuId()).length} rows`;
+    status.append(meta);
   }
-  return `<span class="preview-status">${parts.join("")}</span>`;
+  return status;
 }
 
-function previewIconHtml(item) {
+function previewIconElement(item) {
+  const icon = document.createElement("span");
   const asset = assetForItem(item);
-  if (!asset) return `<span class="preview-icon empty" aria-hidden="true"></span>`;
+  icon.className = `preview-icon${asset ? "" : " empty"}`;
+  icon.setAttribute("aria-hidden", "true");
+  if (!asset) return icon;
   const cssUrl = assetCssUrl(asset);
-  return `<span class="preview-icon" style="--asset-url:url(&quot;${escapeAttr(cssUrl)}&quot;)" aria-hidden="true"></span>`;
+  icon.style.setProperty("--asset-url", `url("${cssUrl.replace(/"/g, "%22")}")`);
+  return icon;
 }
 
-function previewValueHtml(item, value) {
+function previewValueElement(item, value) {
   if (preview.editingItemId === item.id && value) {
-    return `<span class="edit-controls"><span class="edit-button minus" aria-hidden="true"></span><span class="edit-value">${escapeHtml(value)}</span><span class="edit-button plus" aria-hidden="true"></span></span>`;
+    const controls = document.createElement("span");
+    controls.className = "edit-controls";
+    const minus = document.createElement("span");
+    minus.className = "edit-button minus";
+    minus.setAttribute("aria-hidden", "true");
+    const editValue = document.createElement("span");
+    editValue.className = "edit-value";
+    editValue.textContent = value;
+    const plus = document.createElement("span");
+    plus.className = "edit-button plus";
+    plus.setAttribute("aria-hidden", "true");
+    controls.append(minus, editValue, plus);
+    return controls;
   }
+  const valueElement = document.createElement("span");
   if (item.type === "menu") {
-    return `<span class="value value-icon" aria-hidden="true">›</span>`;
+    valueElement.className = "value value-icon";
+    valueElement.setAttribute("aria-hidden", "true");
+    valueElement.textContent = "›";
+    return valueElement;
   }
-  return `<span class="value">${escapeHtml(value)}</span>`;
+  valueElement.className = "value";
+  valueElement.textContent = value;
+  return valueElement;
 }
 
 function assetForItem(item) {
@@ -1399,64 +1618,64 @@ function renderOutput() {
 function renderInstructions() {
   const diagnostics = collectDiagnostics();
   const profile = targetProfileById(model.targetSettings.profileId);
-  els.instructions.innerHTML = `
-    <section>
-      <h3>Static hosting</h3>
-      <ol>
-        <li>Place this folder under <code>docs/menu-builder/</code> and publish the repository with GitHub Pages from <code>docs/</code>.</li>
-        <li>The app stores the working project in browser local storage and can export/import the JSON model.</li>
-        <li>No backend, local-file access, or browser compiler is required. The app exports text assets for the user's normal development environment.</li>
-      </ol>
-    </section>
-    <section>
-      <h3>Selected target</h3>
-      <ol>
-        ${profileInstructions(profile).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
-      </ol>
-    </section>
-    <section>
-      <h3>Samples</h3>
-      <ol>
-        <li>Start with the empty project to build a new declaration from scratch.</li>
-        <li>Use <code>Load RoverConsole sample</code> to inspect a complete nested menu with backing values, formatters, decorators, and callbacks.</li>
-        <li>Use <code>Clear project</code> to return to a blank model after exploring or modifying the sample.</li>
-      </ol>
-    </section>
-    <section>
-      <h3>Firmware export</h3>
-      <ol>
-        <li>Use the declaration-only output when the sketch already owns setup, loop, input, and display adapters.</li>
-        <li>Use the Arduino Serial sketch output for a complete text-console starting point.</li>
-        <li>Use the ANSI Serial sketch output for terminal apps that support cursor positioning and ANSI styles.</li>
-        <li>Use the Desktop C++ stdio program for command-line testing without Arduino or browser dependencies.</li>
-        <li>Use the selected target sketch/source output for the active profile.</li>
-        <li>Use the selected target asset header with graphical profiles that generate bitmap data.</li>
-        <li>Adafruit_GFX and TFT_eSPI color targets use RGB565 assets; Adafruit monochrome and U8g2 targets use 1-bit bitmap assets.</li>
-        <li>LiquidCrystal and hd44780 character LCD targets ignore graphical assets and render fixed-width text rows.</li>
-        <li>Move generated backing variables and callbacks into normal sketch files when replacing stubs with real application logic.</li>
-      </ol>
-    </section>
-    <section>
-      <h3>Assets</h3>
-      <ol>
-        <li>SVG assets are sanitized before preview or export.</li>
-        <li>Raster assets and optional masks are decoded in browser memory and exported without local filesystem paths.</li>
-        <li>Text targets report assigned icons as ignored; graphical targets export only used assets unless the profile says otherwise.</li>
-      </ol>
-    </section>
-    <section>
-      <h3>Web export</h3>
-      <ol>
-        <li>Use the WebAssembly bridge source together with <code>BetterMenu.h</code> and the reusable DOM input/display adapter.</li>
-        <li>Build the generated bridge with the same WebAssembly-capable C++ toolchain used by the project or development environment.</li>
-        <li>Copy the compiled <code>.wasm</code> and static web files into the deployed web demo package.</li>
-      </ol>
-    </section>
-    <section>
-      <h3>Diagnostics</h3>
-      <ul>${diagnostics.map((line) => `<li>${escapeHtml(line)}</li>`).join("") || "<li>No model diagnostics.</li>"}</ul>
-    </section>
-  `;
+  els.instructions.textContent = "";
+  els.instructions.append(
+    instructionSection("Static hosting", "ol", [
+      listItem("Place this folder under ", codeElement("docs/menu-builder/"), " and publish the repository with GitHub Pages from ", codeElement("docs/"), "."),
+      listItem("The app stores the working project in browser local storage and can export/import the JSON model."),
+      listItem("No backend, local-file access, or browser compiler is required. The app exports text assets for the user's normal development environment.")
+    ]),
+    instructionSection("Selected target", "ol", profileInstructions(profile).map((line) => listItem(line))),
+    instructionSection("Samples", "ol", [
+      listItem("Start with the empty project to build a new declaration from scratch."),
+      listItem("Use ", codeElement("Load RoverConsole sample"), " to inspect a complete nested menu with backing values, formatters, decorators, and callbacks."),
+      listItem("Use ", codeElement("Clear project"), " to return to a blank model after exploring or modifying the sample.")
+    ]),
+    instructionSection("Firmware export", "ol", [
+      listItem("Use the declaration-only output when the sketch already owns setup, loop, input, and display adapters."),
+      listItem("Use the Arduino Serial sketch output for a complete text-console starting point."),
+      listItem("Use the ANSI Serial sketch output for terminal apps that support cursor positioning and ANSI styles."),
+      listItem("Use the Desktop C++ stdio program for command-line testing without Arduino or browser dependencies."),
+      listItem("Use the selected target sketch/source output for the active profile."),
+      listItem("Use the selected target asset header with graphical profiles that generate bitmap data."),
+      listItem("Adafruit_GFX and TFT_eSPI color targets use RGB565 assets; Adafruit monochrome and U8g2 targets use 1-bit bitmap assets."),
+      listItem("LiquidCrystal and hd44780 character LCD targets ignore graphical assets and render fixed-width text rows."),
+      listItem("Move generated backing variables and callbacks into normal sketch files when replacing stubs with real application logic.")
+    ]),
+    instructionSection("Assets", "ol", [
+      listItem("SVG assets are sanitized before preview or export."),
+      listItem("Raster assets and optional masks are decoded in browser memory and exported without local filesystem paths."),
+      listItem("Text targets report assigned icons as ignored; graphical targets export only used assets unless the profile says otherwise.")
+    ]),
+    instructionSection("Web export", "ol", [
+      listItem("Use the WebAssembly bridge source together with ", codeElement("BetterMenu.h"), " and the reusable DOM input/display adapter."),
+      listItem("Build the generated bridge with the same WebAssembly-capable C++ toolchain used by the project or development environment."),
+      listItem("Copy the compiled ", codeElement(".wasm"), " and static web files into the deployed web demo package.")
+    ]),
+    instructionSection("Diagnostics", "ul", diagnostics.length ? diagnostics.map((line) => listItem(line)) : [listItem("No model diagnostics.")])
+  );
+}
+
+function instructionSection(titleText, listTag, items) {
+  const section = document.createElement("section");
+  const title = document.createElement("h3");
+  title.textContent = titleText;
+  const list = document.createElement(listTag);
+  list.append(...items);
+  section.append(title, list);
+  return section;
+}
+
+function listItem(...children) {
+  const item = document.createElement("li");
+  item.append(...children);
+  return item;
+}
+
+function codeElement(text) {
+  const code = document.createElement("code");
+  code.textContent = text;
+  return code;
 }
 
 function generateOutputs() {

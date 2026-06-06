@@ -29,7 +29,7 @@ import {
 
 assert.equal(targetProfileById("arduino-serial").capabilities.text, true);
 assert.equal(targetProfileById("adafruit-ili9341-320x240-spi").capabilities.bitmap, true);
-assert.equal(TARGET_PROFILES.length, 5);
+assert.equal(TARGET_PROFILES.length, 16);
 assert.equal(targetProfileById("arduino-serial").previewRendererId, "serial-stream");
 assert.equal(targetProfileById("arduino-ansi-serial").previewRendererId, "ansi-terminal");
 assert.equal(targetProfileById("desktop-stdio").previewRendererId, "stdio-screen");
