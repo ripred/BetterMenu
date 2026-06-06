@@ -15,11 +15,11 @@ The menu tree is defined in one expression. Submenus are stored inline by value,
 
 ## New Online Builder!
 
-This BetterMenu repository itself now includes a static browser-based builder for drafting menu declarations and exporting starter code for Arduino Serial, ANSI Serial terminals, desktop C++ stdio, WebAssembly/DOM, and Adafruit ILI9341 adapter projects:
+This BetterMenu repository itself now includes a static browser-based builder for drafting menu declarations and exporting starter code for Arduino Serial, ANSI Serial terminals, desktop C++ stdio, WebAssembly/DOM, Adafruit_GFX, TFT_eSPI, U8g2, and character LCD adapter projects:
 
 - [Open the BetterMenu Builder](https://ripred.github.io/BetterMenu/menu-builder/)
 - Start from an empty menu or load the RoverConsole sample to inspect a complete nested declaration.
-- Export declaration-only code, complete text-terminal starter programs, web adapter source files, or a graphical Adafruit_GFX sketch package.
+- Export declaration-only code, complete text-terminal starter programs, web adapter source files, or display-specific sketch packages.
 
 The builder is export-only. It does not require local-file access, user-supplied compilers, accounts, or a backend.
 

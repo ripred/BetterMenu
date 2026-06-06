@@ -746,7 +746,8 @@ function renderTargetSettings() {
   els.targetAnsiColor.checked = Boolean(settings.ansiColor);
   els.targetAnsiHideCursor.checked = Boolean(settings.ansiHideCursor);
   els.targetAnsiClearOnBegin.checked = Boolean(settings.ansiClearOnBegin);
-  updateInputSettingVisibility(settings.inputAdapter);
+  updateTargetSettingVisibility(settings, profile);
+  updateInputSettingVisibility(settings.inputAdapter, profile);
   els.targetSummary.innerHTML = `
     <section>
       <h3>${escapeHtml(profile.label)}</h3>
@@ -754,7 +755,7 @@ function renderTargetSettings() {
         ${profileInstructions(profile).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
         <li>Selected input adapter: ${escapeHtml(inputAdapterLabel(settings.inputAdapter))}.</li>
         <li>Navigation: ${settings.navigationWrap ? "wraps from either menu end to the other" : "stops at the first and last selectable rows"}.</li>
-        ${profile.input.includes("Serial") || profile.display.includes("Serial") || profile.display.includes("Print") ? `<li>Serial baud: ${settings.serialBaud}.</li>` : ""}
+        ${targetUsesSerialBaud(settings, profile) ? `<li>Serial baud: ${settings.serialBaud}.</li>` : ""}
         ${profile.previewRendererId === "serial-stream" ? `<li>Serial preview: ${settings.serialAutoscroll ? "autoscroll on" : "autoscroll off"}, timestamps ${settings.serialTimestamps ? "on" : "off"}.</li>` : ""}
         ${profile.capabilities.terminal ? `<li>Terminal region: ${settings.width}x${settings.height} at row ${settings.originRow}, column ${settings.originCol}.</li>` : ""}
       </ul>
@@ -762,7 +763,38 @@ function renderTargetSettings() {
   `;
 }
 
-function updateInputSettingVisibility(inputAdapter) {
+function updateTargetSettingVisibility(settings, profile) {
+  const rendererId = profile.previewRendererId;
+  const outputKind = profile.outputKind;
+  const driverPins = profile.displayDriver?.pinDefines || [];
+  const pinDefines = (token) => driverPins.some(([name]) => String(name).includes(token));
+  const showSkin = rendererId === "web-dom" || outputKind === "color-gfx";
+  const showDimensions = rendererId !== "web-dom";
+  const showRotation = outputKind === "color-gfx" || outputKind === "mono-gfx";
+  const showTerminalOrigin = rendererId === "ansi-terminal";
+  const showDisplayObject = ["color-gfx", "mono-gfx", "u8g2", "character-lcd"].includes(outputKind);
+  const showInputAdapter = profileSupportsInputSelection(profile);
+  setControlGroupHidden(els.targetSkin, !showSkin);
+  setControlGroupHidden(els.targetWidth, !showDimensions);
+  setControlGroupHidden(els.targetHeight, !showDimensions);
+  setControlGroupHidden(els.targetRotation, !showRotation);
+  setControlGroupHidden(els.targetOriginRow, !showTerminalOrigin);
+  setControlGroupHidden(els.targetOriginCol, !showTerminalOrigin);
+  setControlGroupHidden(els.targetSerialBaud, !targetUsesSerialBaud(settings, profile));
+  setControlGroupHidden(els.targetDisplayObject, !showDisplayObject);
+  setControlGroupHidden(els.targetPinCs, !pinDefines("{cs}"));
+  setControlGroupHidden(els.targetPinDc, !pinDefines("{dc}"));
+  setControlGroupHidden(els.targetPinRst, !pinDefines("{rst}"));
+  setControlGroupHidden(els.targetInputAdapter, !showInputAdapter);
+  setControlGroupHidden(els.targetSerialAutoscroll, rendererId !== "serial-stream");
+  setControlGroupHidden(els.targetSerialTimestamps, rendererId !== "serial-stream");
+  setControlGroupHidden(els.targetAnsiColor, rendererId !== "ansi-terminal");
+  setControlGroupHidden(els.targetAnsiHideCursor, rendererId !== "ansi-terminal");
+  setControlGroupHidden(els.targetAnsiClearOnBegin, rendererId !== "ansi-terminal");
+}
+
+function updateInputSettingVisibility(inputAdapter, profile = targetProfileById(model.targetSettings.profileId)) {
+  const showInputAdapter = profileSupportsInputSelection(profile);
   const showSerial = inputAdapter === "serial-keys";
   const showGpio = inputAdapter === "gpio-buttons";
   const showGesture = inputAdapter === "button-gestures";
@@ -775,7 +807,7 @@ function updateInputSettingVisibility(inputAdapter) {
     els.targetKeyLeft,
     els.targetKeyRight,
     els.targetKeyCaseInsensitive
-  ].forEach((field) => setControlGroupHidden(field, !showSerial));
+  ].forEach((field) => setControlGroupHidden(field, !showInputAdapter || !showSerial));
   [
     els.targetButtonUp,
     els.targetButtonDown,
@@ -785,14 +817,34 @@ function updateInputSettingVisibility(inputAdapter) {
     els.targetButtonRight,
     els.targetButtonDebounce,
     els.targetButtonsActiveLow
-  ].forEach((field) => setControlGroupHidden(field, !showGpio));
-  setControlGroupHidden(els.targetGesturePin, !showGesture);
-  setControlGroupHidden(els.targetCustomEventReader, !showCustom);
+  ].forEach((field) => setControlGroupHidden(field, !showInputAdapter || !showGpio));
+  setControlGroupHidden(els.targetGesturePin, !showInputAdapter || !showGesture);
+  setControlGroupHidden(els.targetCustomEventReader, !showInputAdapter || !showCustom);
 }
 
 function setControlGroupHidden(field, hidden) {
   const group = field?.closest(".field, .checkline");
   if (group) group.hidden = hidden;
+}
+
+function profileSupportsInputSelection(profile) {
+  return profile.outputKind !== "desktop-stdio" && profile.outputKind !== "web-dom-wasm";
+}
+
+function targetUsesSerialBaud(settings, profile) {
+  return profile.outputKind === "arduino-serial"
+    || profile.outputKind === "arduino-ansi-serial"
+    || (profileSupportsInputSelection(profile) && settings.inputAdapter === "serial-keys");
+}
+
+function arduinoSerialSetupCode(settings, profile) {
+  if (!targetUsesSerialBaud(settings, profile)) {
+    return "";
+  }
+  return `    Serial.begin(${settings.serialBaud});
+    while (!Serial) {
+    }
+`;
 }
 
 function renderStatusWidgetEditor() {
@@ -938,6 +990,10 @@ function renderPreview() {
     renderStdioScreenPreview();
   } else if (rendererId === "ansi-terminal") {
     renderAnsiTerminalPreview();
+  } else if (rendererId === "monochrome-viewport") {
+    renderMonochromeViewportPreview();
+  } else if (rendererId === "character-lcd") {
+    renderCharacterLcdPreview();
   } else {
     renderGraphicalPreview(rendererId);
   }
@@ -955,9 +1011,15 @@ function clearPreviewSurface(rendererId) {
   els.previewMenu.style.removeProperty("--preview-height");
   els.previewMenu.style.removeProperty("--preview-aspect");
   els.previewMenu.style.removeProperty("--preview-zoom");
+  els.previewMenu.style.removeProperty("--lcd-cols");
+  els.previewMenu.style.removeProperty("--lcd-rows");
   els.previewZoomLabel.textContent = `${Math.round(zoom * 100)}%`;
-  els.previewZoomOut.disabled = rendererId !== "graphical-viewport" || zoom <= 0.75;
-  els.previewZoomIn.disabled = rendererId !== "graphical-viewport" || zoom >= 2;
+  els.previewZoomOut.disabled = !isZoomableRenderer(rendererId) || zoom <= 0.75;
+  els.previewZoomIn.disabled = !isZoomableRenderer(rendererId) || zoom >= 2;
+}
+
+function isZoomableRenderer(rendererId) {
+  return rendererId === "graphical-viewport" || rendererId === "monochrome-viewport" || rendererId === "character-lcd";
 }
 
 function renderGraphicalPreview(rendererId) {
@@ -1085,13 +1147,93 @@ function renderAnsiTerminalPreview() {
   preview.needsRender = false;
 }
 
-function currentTextSnapshot() {
+function renderMonochromeViewportPreview() {
+  const settings = normalizeTargetSettings(model.targetSettings);
+  const targetWidth = Math.max(1, numberOr(settings.width, 128));
+  const targetHeight = Math.max(1, numberOr(settings.height, 64));
+  const zoom = clamp(numberOr(model.previewSettings.zoom, 1), 0.75, 2);
+  const rowHeight = targetHeight <= 32 ? 8 : 10;
+  const textRows = Math.max(2, Math.floor(targetHeight / rowHeight));
+  const textCols = Math.max(8, Math.min(32, Math.floor(targetWidth / 6)));
+  const snapshot = currentTextSnapshot({ width: textCols, height: textRows });
+  els.previewFrame.classList.add("graphical-frame");
+  els.previewFrame.style.setProperty("--preview-width", `${targetWidth}px`);
+  els.previewFrame.style.setProperty("--preview-height", `${targetHeight}px`);
+  els.previewFrame.style.setProperty("--preview-zoom", String(zoom));
+  els.previewMenu.classList.add("monochrome-viewport");
+  els.previewMenu.style.setProperty("--preview-width", `${targetWidth}px`);
+  els.previewMenu.style.setProperty("--preview-height", `${targetHeight}px`);
+  els.previewMenu.style.setProperty("--preview-aspect", `${targetWidth} / ${targetHeight}`);
+  els.previewMenu.style.setProperty("--preview-zoom", String(zoom));
+
+  const rows = snapshot.rows;
+  rows.forEach((line, index) => {
+    const row = document.createElement("div");
+    row.className = "mono-line";
+    row.style.setProperty("--mono-top", `${index * rowHeight}px`);
+    row.style.setProperty("--mono-height", `${rowHeight}px`);
+    if (line.kind === "title") row.classList.add("title");
+    if (line.selected) row.classList.add("selected");
+    if (line.disabled) row.classList.add("disabled");
+    if (line.editing) row.classList.add("editing");
+    row.textContent = line.text;
+    els.previewMenu.append(row);
+  });
+  const status = compactStatusText();
+  if (status) {
+    const statusEl = document.createElement("div");
+    statusEl.className = "mono-status";
+    statusEl.textContent = status;
+    els.previewMenu.append(statusEl);
+  }
+  renderPreviewDetails(snapshot.selectedItem);
+  preview.needsRender = false;
+}
+
+function renderCharacterLcdPreview() {
+  const snapshot = currentTextSnapshot();
+  const settings = normalizeTargetSettings(model.targetSettings);
+  const width = Math.max(1, settings.width || 16);
+  const height = Math.max(1, settings.height || 2);
+  const zoom = clamp(numberOr(model.previewSettings.zoom, 1), 0.75, 2);
+  els.previewMenu.classList.add("character-lcd-preview");
+  els.previewMenu.style.setProperty("--lcd-cols", String(width));
+  els.previewMenu.style.setProperty("--lcd-rows", String(height));
+  els.previewMenu.style.setProperty("--preview-zoom", String(zoom));
+  const lcd = document.createElement("div");
+  lcd.className = "lcd-window";
+  snapshot.lines.slice(0, height).forEach((line) => {
+    const row = document.createElement("div");
+    row.className = "lcd-line";
+    row.textContent = padTerminalLine(line, width);
+    lcd.append(row);
+  });
+  els.previewMenu.append(lcd);
+  renderPreviewDetails(snapshot.selectedItem);
+  preview.needsRender = false;
+}
+
+function compactStatusText() {
+  const parts = [];
+  const chip = firstStatusWidget(model.statusWidgets, "chip");
+  const battery = firstStatusWidget(model.statusWidgets, "battery");
+  if (chip?.sourceSymbol) {
+    const value = Boolean(preview.values[chip.sourceSymbol]);
+    parts.push(value ? chip.trueLabel || "ON" : chip.falseLabel || "OFF");
+  }
+  if (battery?.sourceSymbol) {
+    parts.push(`${batteryPercent(preview.values[battery.sourceSymbol], battery)}%`);
+  }
+  return parts.join(" ");
+}
+
+function currentTextSnapshot(overrides = {}) {
   const menuId = currentPreviewMenuId();
   const rows = visibleItemsForMenu(menuId);
   const selected = previewSelectedFor(menuId, rows.length);
   const settings = normalizeTargetSettings(model.targetSettings);
-  const width = settings.width || 32;
-  const height = settings.height || rows.length + 1;
+  const width = overrides.width || settings.width || 32;
+  const height = overrides.height || settings.height || rows.length + 1;
   const itemWindow = height > 0 ? Math.max(0, height - 1) : rows.length;
   const top = previewTop(rows.length, selected, itemWindow || rows.length || 1);
   const rendered = [];
@@ -1287,7 +1429,10 @@ function renderInstructions() {
         <li>Use the Arduino Serial sketch output for a complete text-console starting point.</li>
         <li>Use the ANSI Serial sketch output for terminal apps that support cursor positioning and ANSI styles.</li>
         <li>Use the Desktop C++ stdio program for command-line testing without Arduino or browser dependencies.</li>
-        <li>Use the Adafruit ILI9341 sketch and generated asset header together for the first graphical Adafruit_GFX target.</li>
+        <li>Use the selected target sketch/source output for the active profile.</li>
+        <li>Use the selected target asset header with graphical profiles that generate bitmap data.</li>
+        <li>Adafruit_GFX and TFT_eSPI color targets use RGB565 assets; Adafruit monochrome and U8g2 targets use 1-bit bitmap assets.</li>
+        <li>LiquidCrystal and hd44780 character LCD targets ignore graphical assets and render fixed-width text rows.</li>
         <li>Move generated backing variables and callbacks into normal sketch files when replacing stubs with real application logic.</li>
       </ol>
     </section>
@@ -1322,6 +1467,7 @@ function generateOutputs() {
   const bridge = generateWasmBridgeCpp();
   const adafruitAssets = generateAdafruitAssetHeader();
   const adafruitSketch = generateAdafruitSketch();
+  const targetFiles = generateSelectedTargetFiles({ declaration, sketch, ansiSketch, stdio, bridge, adafruitSketch, adafruitAssets });
   return {
     firmwareDeclaration: declaration,
     firmwareSketch: sketch,
@@ -1329,11 +1475,82 @@ function generateOutputs() {
     stdioProgram: stdio,
     wasmBridgeCpp: bridge,
     webPackageFiles: JSON.stringify(generateWebPackageFiles(bridge), null, 2),
+    targetSketch: targetFiles.sketch,
+    targetAssets: targetFiles.assets,
     adafruitSketch,
     adafruitAssets,
-    targetPackageFiles: JSON.stringify(generateTargetPackageFiles({ bridge, ansiSketch, adafruitSketch, adafruitAssets }), null, 2),
+    targetPackageFiles: JSON.stringify(generateTargetPackageFiles(targetFiles), null, 2),
     diagnostics: collectDiagnostics().join("\n") || "No model diagnostics."
   };
+}
+
+function generateSelectedTargetFiles(fallbacks = {}) {
+  const profile = targetProfileById(model.targetSettings.profileId);
+  const settings = normalizeTargetSettings(model.targetSettings);
+  if (profile.outputKind === "arduino-serial") {
+    return targetFilesFor(profile, { [profile.files[0]]: fallbacks.sketch || generateFirmwareSketch() });
+  }
+  if (profile.outputKind === "arduino-ansi-serial") {
+    return targetFilesFor(profile, { [profile.files[0]]: fallbacks.ansiSketch || generateAnsiSerialSketch() });
+  }
+  if (profile.outputKind === "desktop-stdio") {
+    return targetFilesFor(profile, { [profile.files[0]]: fallbacks.stdio || generateStdioProgram() });
+  }
+  if (profile.outputKind === "web-dom-wasm") {
+    const bridge = fallbacks.bridge || generateWasmBridgeCpp();
+    return targetFilesFor(profile, {
+      "bettermenu_wasm.cpp": bridge,
+      "web-package-manifest.json": generateWebPackageFiles(bridge)
+    });
+  }
+  if (profile.outputKind === "color-gfx") {
+    return targetFilesFor(profile, {
+      [profile.displayDriver.sketchFile]: generateColorGfxSketch(profile.id),
+      [profile.displayDriver.assetHeader]: generateRgb565AssetHeader()
+    });
+  }
+  if (profile.outputKind === "mono-gfx") {
+    return targetFilesFor(profile, {
+      [profile.displayDriver.sketchFile]: generateAdafruitMonoGfxSketch(profile.id),
+      [profile.displayDriver.assetHeader]: generateMonoAssetHeader()
+    });
+  }
+  if (profile.outputKind === "u8g2") {
+    return targetFilesFor(profile, {
+      [profile.displayDriver.sketchFile]: generateU8g2Sketch(profile.id),
+      [profile.displayDriver.assetHeader]: generateMonoAssetHeader()
+    });
+  }
+  if (profile.outputKind === "character-lcd") {
+    return targetFilesFor(profile, {
+      [profile.displayDriver.sketchFile]: generateCharacterLcdSketch(profile.id)
+    });
+  }
+  return targetFilesFor(profile, { "BetterMenuDeclaration.h": fallbacks.declaration || generateFirmwareDeclaration() }, settings);
+}
+
+function targetFilesFor(profile, files) {
+  const entries = Object.entries(files || {});
+  const sketchEntry = entries.find(([name]) => /\.(ino|cpp|h)$/i.test(name) && !/Assets\.h$/i.test(name)) || entries[0] || ["", ""];
+  const assetEntry = entries.find(([name]) => /Assets\.h$/i.test(name)) || ["", ""];
+  return {
+    profile: profile.id,
+    profileLabel: profile.label,
+    sketchName: sketchEntry[0],
+    assetName: assetEntry[0],
+    sketch: typeof sketchEntry[1] === "string" ? sketchEntry[1] : JSON.stringify(sketchEntry[1], null, 2),
+    assets: assetEntry[0]
+      ? (typeof assetEntry[1] === "string" ? assetEntry[1] : JSON.stringify(assetEntry[1], null, 2))
+      : targetAssetMessage(profile),
+    files
+  };
+}
+
+function targetAssetMessage(profile) {
+  if (profile.assetEncoding === "none") {
+    return `${profile.label} does not generate an asset header.`;
+  }
+  return `${profile.label} has no generated assets for the current model.`;
 }
 
 function generateFirmwareDeclaration() {
@@ -1471,6 +1688,7 @@ function settingsForProfile(profileId) {
 function generateFirmwareSketch() {
   const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
   const settings = settingsForProfile("arduino-serial");
+  const profile = targetProfileById(settings.profileId);
   return `#include <BetterMenu.h>
 ${arduinoInputInclude(settings)}
 
@@ -1484,9 +1702,7 @@ ${arduinoInputGlobals(settings, "keyInput")}
 static print_display_ctx_t serialDisplay;
 
 void setup() {
-    Serial.begin(${settings.serialBaud});
-    while (!Serial) {
-    }
+${arduinoSerialSetupCode(settings, profile)}
     Serial.println(F("BetterMenu Serial demo"));
     Serial.println(F("Use W/S to move, E to select, Q to go back, A/D to edit."));
 
@@ -1507,6 +1723,7 @@ void loop() {
 function generateAnsiSerialSketch() {
   const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
   const settings = settingsForProfile("arduino-ansi-serial");
+  const profile = targetProfileById(settings.profileId);
   const width = Math.max(1, settings.width || 48);
   const height = Math.max(1, settings.height || 8);
   return `#include <BetterMenu.h>
@@ -1654,10 +1871,7 @@ static display_t make_ansi_print_display(ansi_display_ctx_t &ctx, Print &out, ui
 }
 
 void setup() {
-    Serial.begin(${settings.serialBaud});
-    while (!Serial) {
-    }
-
+${arduinoSerialSetupCode(settings, profile)}
     ${arduinoInputSetup(settings, "serialInput")}
     display_t display = make_ansi_print_display(ansiDisplay, Serial, ${width}, ${height}, ${settings.originRow}, ${settings.originCol});
     menuRuntime = menu_runtime_t::make(${menuName}, display, input, false);
@@ -1982,6 +2196,10 @@ function generateWebPackageFiles(bridgeSource) {
 }
 
 function generateAdafruitAssetHeader() {
+  return generateRgb565AssetHeader();
+}
+
+function generateRgb565AssetHeader() {
   const assets = usedAssets(model);
   const declarations = [];
   const structs = [];
@@ -1998,7 +2216,6 @@ function generateAdafruitAssetHeader() {
   return `#pragma once
 
 #include <Arduino.h>
-#include <Adafruit_GFX.h>
 
 struct BMIconAsset {
     uint8_t width;
@@ -2019,7 +2236,8 @@ static bool bmIconMaskBit(const BMIconAsset *icon, uint16_t index) {
     return (value & (1 << (7 - (index % 8)))) != 0;
 }
 
-static void bmDrawIcon(Adafruit_GFX &gfx, int16_t x, int16_t y, const BMIconAsset *icon, uint16_t color, uint16_t fallback) {
+template <typename Display>
+static void bmDrawIcon(Display &gfx, int16_t x, int16_t y, const BMIconAsset *icon, uint16_t color, uint16_t fallback) {
     if (!icon || !icon->pixels) {
         gfx.drawCircle(x + 9, y + 9, 3, fallback);
         return;
@@ -2038,6 +2256,770 @@ static void bmDrawIcon(Adafruit_GFX &gfx, int16_t x, int16_t y, const BMIconAsse
 `;
 }
 
+function displayIncludeLines(driver) {
+  return (driver.includeLines || []).join("\n");
+}
+
+function displayPinDefines(driver, settings) {
+  return (driver.pinDefines || [])
+    .map(([name, value]) => `#define ${expandDisplayTemplate(name, settings, targetProfileById(settings.profileId))} ${expandDisplayTemplate(value, settings, targetProfileById(settings.profileId))}`)
+    .join("\n");
+}
+
+function expandDisplayLines(lines, settings, profile) {
+  return (lines || []).map((line) => `    ${expandDisplayTemplate(line, settings, profile)}`).join("\n");
+}
+
+function expandDisplayTemplate(template, settings, profile = targetProfileById(settings.profileId)) {
+  return String(template || "")
+    .replaceAll("{display}", settings.displayObject)
+    .replaceAll("{width}", String(Math.max(1, numberOr(settings.width, profile.defaults?.width || 1))))
+    .replaceAll("{height}", String(Math.max(1, numberOr(settings.height, profile.defaults?.height || 1))))
+    .replaceAll("{rotation}", String(numberOr(settings.rotation, profile.defaults?.rotation || 0)))
+    .replaceAll("{cs}", settings.pins?.cs || "TFT_CS")
+    .replaceAll("{dc}", settings.pins?.dc || "TFT_DC")
+    .replaceAll("{rst}", settings.pins?.rst || "TFT_RST");
+}
+
+function generateColorHeaderStatusCode(displayObject) {
+  const chip = firstStatusWidget(model.statusWidgets, "chip");
+  const battery = firstStatusWidget(model.statusWidgets, "battery");
+  const lines = [];
+  if (battery) {
+    lines.push(`    int pct = batteryPercent();
+    uint16_t batteryColor = pct > 50 ? bmRgb(86, 216, 168) : (pct > 20 ? bmRgb(232, 182, 92) : bmRgb(240, 122, 110));
+    int16_t bx = BM_SCREEN_W - BM_MARGIN - (BM_COMPACT ? 22 : 28);
+    int16_t by = BM_MARGIN + (BM_COMPACT ? 7 : 11);
+    ${displayObject}.drawRoundRect(bx, by, BM_COMPACT ? 16 : 22, BM_COMPACT ? 8 : 12, 2, bmRgb(126, 138, 153));
+    ${displayObject}.fillRect(bx + (BM_COMPACT ? 17 : 23), by + 3, 2, BM_COMPACT ? 3 : 6, bmRgb(126, 138, 153));
+    ${displayObject}.fillRect(bx + 2, by + 2, ((BM_COMPACT ? 12 : 18) * pct) / 100, BM_COMPACT ? 4 : 8, batteryColor);`);
+  }
+  if (chip?.sourceSymbol) {
+    lines.push(`    const bool chipOn = ${chip.sourceSymbol};
+    uint16_t chipColor = chipOn ? bmRgb(232, 182, 92) : bmRgb(86, 216, 168);
+    int16_t sx = BM_SCREEN_W - BM_MARGIN - (BM_COMPACT ? 46 : 86);
+    int16_t sy = BM_MARGIN + (BM_COMPACT ? 9 : 15);
+    ${displayObject}.fillCircle(sx, sy + 3, BM_COMPACT ? 2 : 3, chipColor);
+    if (!BM_COMPACT) {
+        const char *chipText = chipOn ? ${cppString(chip.trueLabel || "ARMED")} : ${cppString(chip.falseLabel || "READY")};
+        ${displayObject}.setTextColor(chipColor, bmRgb(23, 31, 43));
+        ${displayObject}.setCursor(sx + 6, sy);
+        ${displayObject}.print(chipText);
+    }`);
+  }
+  return lines.length ? `\n${lines.join("\n")}` : "";
+}
+
+function generateColorGfxSketch(profileId) {
+  const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
+  const settings = settingsForProfile(profileId);
+  const profile = targetProfileById(settings.profileId);
+  const driver = profile.displayDriver || {};
+  const width = Math.max(96, numberOr(settings.width, 320));
+  const height = Math.max(64, numberOr(settings.height, 240));
+  const compact = width < 220 || height < 170;
+  const headerH = compact ? 22 : 32;
+  const rowH = compact ? 24 : 36;
+  const margin = compact ? 4 : 8;
+  const itemTop = margin + headerH + (compact ? 4 : 6);
+  const viewRows = Math.max(1, Math.min(7, Math.floor((height - itemTop - margin) / rowH)));
+  const iconSize = compact ? 12 : 18;
+  const displayCols = Math.max(12, Math.min(80, Math.floor(width / 6)));
+  return `${displayIncludeLines(driver)}
+#include <BetterMenu.h>
+${arduinoInputInclude(settings)}
+
+#include <stdio.h>
+#include <string.h>
+
+#include "${driver.assetHeader || "BetterMenuRgb565Assets.h"}"
+
+${displayPinDefines(driver, settings)}
+
+${expandDisplayTemplate(driver.constructor || "static TFT_eSPI {display};", settings, profile)}
+static menu_runtime_t menuRuntime;
+${arduinoInputGlobals(settings, "menuInput")}
+
+${generateSupportCode()}
+
+static const auto ${menuName} =
+${menuExpression(model.rootMenuId, 0)};
+
+static const int BM_SCREEN_W = ${width};
+static const int BM_SCREEN_H = ${height};
+static const int BM_MARGIN = ${margin};
+static const int BM_HEADER_H = ${headerH};
+static const int BM_ROW_H = ${rowH};
+static const int BM_ITEM_TOP = ${itemTop};
+static const int BM_ICON_SIZE = ${iconSize};
+static const bool BM_COMPACT = ${compact ? "true" : "false"};
+static const uint8_t BM_VIEW_ROWS = ${viewRows};
+static const uint8_t BM_TEXT_COLUMNS = ${displayCols};
+
+static uint16_t bmRgb(uint8_t r, uint8_t g, uint8_t b) {
+    return ${settings.displayObject}.color565(r, g, b);
+}
+
+static char bmLower(char c) {
+    return (c >= 'A' && c <= 'Z') ? static_cast<char>(c + ('a' - 'A')) : c;
+}
+
+static bool bmEq(const char *a, const char *b) {
+    if (!a || !b) {
+        return false;
+    }
+    while (*a && *b) {
+        if (bmLower(*a++) != bmLower(*b++)) {
+            return false;
+        }
+    }
+    return *a == '\\0' && *b == '\\0';
+}
+
+static void stripLabel(char *text) {
+    while (*text == '>' || *text == ' ') {
+        memmove(text, text + 1, strlen(text));
+    }
+    char *edit = strstr(text, "  (edit)");
+    if (edit) {
+        *edit = '\\0';
+    }
+}
+
+static char *splitValue(char *text) {
+    char *colon = strchr(text, ':');
+    if (!colon) {
+        return 0;
+    }
+    *colon = '\\0';
+    ++colon;
+    while (*colon == ' ') {
+        ++colon;
+    }
+    return colon;
+}
+
+${generateAdafruitIconLookup()}
+
+static int batteryPercent(void) {
+${generateAdafruitBatteryCode()}
+}
+
+static void drawHeader(const char *text, uint8_t flags) {
+    int16_t headerW = BM_SCREEN_W - (BM_MARGIN * 2);
+    ${settings.displayObject}.fillRoundRect(BM_MARGIN, BM_MARGIN, headerW, BM_HEADER_H, BM_COMPACT ? 4 : 8, bmRgb(23, 31, 43));
+    ${settings.displayObject}.drawRoundRect(BM_MARGIN, BM_MARGIN, headerW, BM_HEADER_H, BM_COMPACT ? 4 : 8, bmRgb(46, 58, 74));
+    int16_t tx = BM_MARGIN + (BM_COMPACT ? 8 : 24);
+    if (flags & MENU_RENDER_BACK_AVAILABLE) {
+        ${settings.displayObject}.drawLine(BM_MARGIN + 12, BM_MARGIN + 6, BM_MARGIN + 6, BM_MARGIN + (BM_HEADER_H / 2), bmRgb(47, 211, 190));
+        ${settings.displayObject}.drawLine(BM_MARGIN + 6, BM_MARGIN + (BM_HEADER_H / 2), BM_MARGIN + 12, BM_MARGIN + BM_HEADER_H - 6, bmRgb(47, 211, 190));
+        tx = BM_MARGIN + (BM_COMPACT ? 18 : 32);
+    }
+    char title[MENU_MAX_LINE];
+    strncpy(title, text ? text : "", sizeof(title));
+    title[sizeof(title) - 1] = '\\0';
+    ${settings.displayObject}.setTextWrap(false);
+    ${settings.displayObject}.setTextSize(1);
+    ${settings.displayObject}.setTextColor(bmRgb(234, 240, 246), bmRgb(23, 31, 43));
+    ${settings.displayObject}.setCursor(tx, BM_MARGIN + (BM_COMPACT ? 7 : 11));
+    ${settings.displayObject}.print(title);
+${generateColorHeaderStatusCode(settings.displayObject)}
+}
+
+static void drawScrollbar(menu_cursor_t const *cur, menu_render_line_t const *line) {
+    if (!cur || !line || line->row != 1) {
+        return;
+    }
+    uint8_t count = menu_runtime_t::menu_count(*cur);
+    int total = menu_runtime_t::visible_count(*cur, count);
+    if (total <= BM_VIEW_ROWS) {
+        return;
+    }
+    int top = menu_runtime_t::raw_to_visible(*cur, count, line->item_index);
+    int trackY = BM_ITEM_TOP;
+    int trackH = BM_VIEW_ROWS * BM_ROW_H;
+    int thumbH = trackH * BM_VIEW_ROWS / total;
+    if (thumbH < 12) {
+        thumbH = 12;
+    }
+    int denom = total - BM_VIEW_ROWS;
+    if (denom < 1) {
+        denom = 1;
+    }
+    int thumbY = trackY + (trackH - thumbH) * top / denom;
+    int x = BM_SCREEN_W - BM_MARGIN - 4;
+    ${settings.displayObject}.fillRoundRect(x, trackY, 4, trackH, 2, bmRgb(34, 43, 56));
+    ${settings.displayObject}.fillRoundRect(x, thumbY, 4, thumbH, 2, bmRgb(58, 150, 140));
+}
+
+static void colorClear(void *) {
+    ${settings.displayObject}.fillScreen(bmRgb(16, 21, 28));
+}
+
+static void colorFlush(void *) {
+}
+
+static void colorRenderLine(void *ctx, menu_render_line_t const *line) {
+    if (!line) {
+        return;
+    }
+    menu_runtime_t *runtime = static_cast<menu_runtime_t *>(ctx);
+    menu_cursor_t const *cur = (runtime && runtime->depth < MENU_MAX_STACK) ? &runtime->stack[runtime->depth] : 0;
+    if (line->kind == MENU_RENDER_TITLE) {
+        drawHeader(line->text, line->flags);
+        return;
+    }
+    if (line->kind == MENU_RENDER_BLANK) {
+        int16_t y = BM_ITEM_TOP + (line->row - 1) * BM_ROW_H;
+        ${settings.displayObject}.fillRect(BM_MARGIN, y, BM_SCREEN_W - (BM_MARGIN * 2), BM_ROW_H, bmRgb(16, 21, 28));
+        return;
+    }
+    if (line->kind != MENU_RENDER_ITEM) {
+        return;
+    }
+    drawScrollbar(cur, line);
+    uint8_t flags = line->flags;
+    bool selected = (flags & MENU_RENDER_SELECTED) != 0;
+    bool editing = (flags & MENU_RENDER_EDITING) != 0;
+    bool disabled = (flags & MENU_RENDER_DISABLED) != 0;
+    bool child = (flags & MENU_RENDER_HAS_CHILD) != 0;
+    bool editable = cur ? menu_runtime_t::menu_int_has(*cur, line->item_index) : false;
+    int16_t y = BM_ITEM_TOP + (line->row - 1) * BM_ROW_H;
+    int16_t rowW = BM_SCREEN_W - (BM_MARGIN * 3) - 8;
+    int16_t cy = y + (BM_ROW_H / 2);
+    uint16_t cardBg = selected ? bmRgb(15, 45, 50) : bmRgb(20, 26, 35);
+    uint16_t border = selected ? bmRgb(47, 211, 190) : bmRgb(38, 48, 62);
+    ${settings.displayObject}.fillRoundRect(BM_MARGIN, y, rowW, BM_ROW_H - 4, BM_COMPACT ? 4 : 7, cardBg);
+    ${settings.displayObject}.drawRoundRect(BM_MARGIN, y, rowW, BM_ROW_H - 4, BM_COMPACT ? 4 : 7, border);
+    if (selected) {
+        ${settings.displayObject}.fillRoundRect(BM_MARGIN + 3, y + 4, 3, BM_ROW_H - 12, 1, bmRgb(47, 211, 190));
+    }
+    char label[MENU_MAX_LINE];
+    strncpy(label, line->text ? line->text : "", sizeof(label));
+    label[sizeof(label) - 1] = '\\0';
+    stripLabel(label);
+    char *value = splitValue(label);
+    bool alert = bmEq(label, "E-STOP");
+    uint16_t textColor = disabled ? bmRgb(74, 86, 98) : (alert ? bmRgb(240, 122, 110) : bmRgb(234, 240, 246));
+    uint16_t iconColor = disabled ? bmRgb(74, 86, 98) : (alert ? bmRgb(240, 122, 110) : (selected ? bmRgb(47, 211, 190) : bmRgb(150, 166, 182)));
+    bmDrawIcon(${settings.displayObject}, BM_MARGIN + (BM_COMPACT ? 8 : 17), y + ((BM_ROW_H - BM_ICON_SIZE - 4) / 2), bmIconForLabel(label), iconColor, iconColor);
+    ${settings.displayObject}.setTextSize(1);
+    ${settings.displayObject}.setTextColor(textColor, cardBg);
+    ${settings.displayObject}.setCursor(BM_MARGIN + (BM_COMPACT ? 26 : 52), y + ((BM_ROW_H - 10) / 2));
+    ${settings.displayObject}.print(label);
+    if (editing && value) {
+        ${settings.displayObject}.drawRoundRect(BM_SCREEN_W - BM_MARGIN - 54, y + 5, 16, 16, 4, bmRgb(47, 211, 190));
+        ${settings.displayObject}.drawLine(BM_SCREEN_W - BM_MARGIN - 50, cy, BM_SCREEN_W - BM_MARGIN - 42, cy, bmRgb(47, 211, 190));
+        ${settings.displayObject}.setTextColor(bmRgb(95, 224, 196), cardBg);
+        ${settings.displayObject}.setCursor(BM_SCREEN_W - BM_MARGIN - 34, y + ((BM_ROW_H - 10) / 2));
+        ${settings.displayObject}.print(value);
+    } else if (child) {
+        ${settings.displayObject}.drawLine(BM_SCREEN_W - BM_MARGIN - 20, cy - 5, BM_SCREEN_W - BM_MARGIN - 14, cy, bmRgb(126, 138, 153));
+        ${settings.displayObject}.drawLine(BM_SCREEN_W - BM_MARGIN - 14, cy, BM_SCREEN_W - BM_MARGIN - 20, cy + 5, bmRgb(126, 138, 153));
+    } else if (value) {
+        uint16_t valueColor = disabled ? bmRgb(54, 63, 74) : ((line->entry_type == ENTRY_BOOL || line->entry_type == ENTRY_SELECT) ? bmRgb(232, 197, 122) : (editable ? bmRgb(95, 224, 196) : bmRgb(111, 182, 232)));
+        ${settings.displayObject}.setTextColor(valueColor, cardBg);
+        int16_t x = BM_SCREEN_W - BM_MARGIN - 16 - static_cast<int16_t>(strlen(value)) * 6;
+        int16_t minX = BM_MARGIN + (BM_COMPACT ? 82 : 188);
+        if (x < minX) {
+            x = minX;
+        }
+        ${settings.displayObject}.setCursor(x, y + ((BM_ROW_H - 10) / 2));
+        ${settings.displayObject}.print(value);
+    }
+}
+
+static display_ops_t const BM_COLOR_DISPLAY_OPS = {
+    &colorClear,
+    0,
+    &colorFlush,
+    &colorRenderLine
+};
+
+void setup() {
+${arduinoSerialSetupCode(settings, profile)}
+${expandDisplayLines(driver.setupLines || ["{display}.begin();"], settings, profile)}
+    ${settings.displayObject}.setRotation(${settings.rotation});
+    ${settings.displayObject}.setTextWrap(false);
+
+    ${arduinoInputSetup(settings, "menuInput")}
+    display_t display = make_display(BM_TEXT_COLUMNS, BM_VIEW_ROWS + 1, &menuRuntime, &BM_COLOR_DISPLAY_OPS);
+    menuRuntime = menu_runtime_t::make(${menuName}, display, input, false);
+    menuRuntime.set_show_title(true);
+    menuRuntime.set_show_breadcrumbs(true);
+    menuRuntime.set_show_affordances(false);${navigationSetupCode("menuRuntime")}
+    menuRuntime.begin();
+}
+
+void loop() {
+    menuRuntime.service();
+}
+
+// Profile: ${profile.label}
+// Display pin constants are placeholders when the selected driver uses explicit pins.
+`;
+}
+
+function generateMonoAssetHeader() {
+  const assets = usedAssets(model);
+  const declarations = [];
+  const structs = [];
+  for (const asset of assets) {
+    const symbol = assetSymbol(asset);
+    const encoded = asset.encoded;
+    if (!encoded?.mask?.length) continue;
+    declarations.push(`static const uint8_t ${symbol}_BITS[] PROGMEM = {\n${formatMaskArray(encoded.mask)}\n};`);
+    structs.push(`static const BMMonoIconAsset ${symbol} = { ${encoded.width}, ${encoded.height}, ${symbol}_BITS };`);
+  }
+  return `#pragma once
+
+#include <Arduino.h>
+
+struct BMMonoIconAsset {
+    uint8_t width;
+    uint8_t height;
+    const uint8_t *bits;
+};
+
+${declarations.join("\n\n")}
+
+${structs.join("\n")}
+
+static bool bmMonoIconBit(const BMMonoIconAsset *icon, uint16_t index) {
+    if (!icon || !icon->bits) {
+        return false;
+    }
+    uint8_t value = pgm_read_byte(&icon->bits[index / 8]);
+    return (value & (1 << (7 - (index % 8)))) != 0;
+}
+`;
+}
+
+function generateAdafruitMonoGfxSketch(profileId) {
+  const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
+  const settings = settingsForProfile(profileId);
+  const profile = targetProfileById(settings.profileId);
+  const driver = profile.displayDriver || {};
+  const width = Math.max(64, numberOr(settings.width, 128));
+  const height = Math.max(32, numberOr(settings.height, 64));
+  const rowH = height <= 32 ? 8 : 10;
+  const viewRows = Math.max(1, Math.floor(height / rowH) - 1);
+  const displayCols = Math.max(8, Math.min(32, Math.floor(width / 6)));
+  const iconSize = height <= 32 ? 7 : 9;
+  return `${displayIncludeLines(driver)}
+#include <BetterMenu.h>
+${arduinoInputInclude(settings)}
+
+#include <string.h>
+
+#include "${driver.assetHeader || "BetterMenuMonoAssets.h"}"
+
+${displayPinDefines(driver, settings)}
+
+${expandDisplayTemplate(driver.constructor || "static Adafruit_SSD1306 {display}({width}, {height}, &Wire, OLED_RESET);", settings, profile)}
+static menu_runtime_t menuRuntime;
+${arduinoInputGlobals(settings, "menuInput")}
+
+${generateSupportCode()}
+
+static const auto ${menuName} =
+${menuExpression(model.rootMenuId, 0)};
+
+static const int BM_SCREEN_W = ${width};
+static const int BM_SCREEN_H = ${height};
+static const int BM_ROW_H = ${rowH};
+static const int BM_ICON_SIZE = ${iconSize};
+static const uint8_t BM_VIEW_ROWS = ${viewRows};
+static const uint8_t BM_TEXT_COLUMNS = ${displayCols};
+
+static void stripLabel(char *text) {
+    while (*text == '>' || *text == ' ') {
+        memmove(text, text + 1, strlen(text));
+    }
+    char *edit = strstr(text, "  (edit)");
+    if (edit) {
+        *edit = '\\0';
+    }
+}
+
+static char *splitValue(char *text) {
+    char *colon = strchr(text, ':');
+    if (!colon) {
+        return 0;
+    }
+    *colon = '\\0';
+    ++colon;
+    while (*colon == ' ') {
+        ++colon;
+    }
+    return colon;
+}
+
+${generateMonoIconLookup()}
+
+static int batteryPercent(void) {
+${generateAdafruitBatteryCode()}
+}
+
+static void drawMonoIcon(int16_t x, int16_t y, const BMMonoIconAsset *icon, uint16_t color) {
+    if (!icon || !icon->bits) {
+        ${settings.displayObject}.drawCircle(x + 4, y + 4, 3, color);
+        return;
+    }
+    for (uint8_t py = 0; py < icon->height; ++py) {
+        for (uint8_t px = 0; px < icon->width; ++px) {
+            uint16_t index = static_cast<uint16_t>(py) * icon->width + px;
+            if (bmMonoIconBit(icon, index)) {
+                ${settings.displayObject}.drawPixel(x + px, y + py, color);
+            }
+        }
+    }
+}
+
+static void drawMonoStatus(void) {
+${generateMonoStatusCode("adafruit", settings.displayObject)}
+}
+
+static void monoClear(void *) {
+    ${settings.displayObject}.clearDisplay();
+}
+
+static void monoFlush(void *) {
+    ${settings.displayObject}.display();
+}
+
+static void monoRenderLine(void *, menu_render_line_t const *line) {
+    if (!line) {
+        return;
+    }
+    int16_t y = line->row * BM_ROW_H;
+    if (line->kind == MENU_RENDER_BLANK) {
+        ${settings.displayObject}.fillRect(0, y, BM_SCREEN_W, BM_ROW_H, 0);
+        return;
+    }
+    if (line->kind == MENU_RENDER_TITLE) {
+        ${settings.displayObject}.fillRect(0, 0, BM_SCREEN_W, BM_ROW_H, 0);
+        ${settings.displayObject}.setTextSize(1);
+        ${settings.displayObject}.setTextColor(1, 0);
+        ${settings.displayObject}.setCursor((line->flags & MENU_RENDER_BACK_AVAILABLE) ? 8 : 0, 1);
+        if (line->flags & MENU_RENDER_BACK_AVAILABLE) {
+            ${settings.displayObject}.print('<');
+        }
+        ${settings.displayObject}.print(line->text ? line->text : "");
+        drawMonoStatus();
+        return;
+    }
+    if (line->kind != MENU_RENDER_ITEM) {
+        return;
+    }
+    bool selected = (line->flags & MENU_RENDER_SELECTED) != 0;
+    bool disabled = (line->flags & MENU_RENDER_DISABLED) != 0;
+    bool editing = (line->flags & MENU_RENDER_EDITING) != 0;
+    ${settings.displayObject}.fillRect(0, y, BM_SCREEN_W, BM_ROW_H, selected ? 1 : 0);
+    char label[MENU_MAX_LINE];
+    strncpy(label, line->text ? line->text : "", sizeof(label));
+    label[sizeof(label) - 1] = '\\0';
+    stripLabel(label);
+    char *value = splitValue(label);
+    uint16_t fg = selected ? 0 : 1;
+    uint16_t bg = selected ? 1 : 0;
+    if (disabled) {
+        fg = 1;
+        bg = 0;
+    }
+    ${settings.displayObject}.setTextSize(1);
+    ${settings.displayObject}.setTextColor(fg, bg);
+    drawMonoIcon(1, y + 1, bmMonoIconForLabel(label), fg);
+    ${settings.displayObject}.setCursor(BM_ICON_SIZE + 3, y + 1);
+    ${settings.displayObject}.print(label);
+    if (value) {
+        int16_t x = BM_SCREEN_W - static_cast<int16_t>(strlen(value)) * 6 - 1;
+        if (x < BM_ICON_SIZE + 42) {
+            x = BM_ICON_SIZE + 42;
+        }
+        ${settings.displayObject}.setCursor(x, y + 1);
+        ${settings.displayObject}.print(value);
+    }
+    if (editing) {
+        ${settings.displayObject}.drawRect(BM_SCREEN_W - 8, y + 1, 7, BM_ROW_H - 2, fg);
+    }
+}
+
+static display_ops_t const BM_MONO_DISPLAY_OPS = {
+    &monoClear,
+    0,
+    &monoFlush,
+    &monoRenderLine
+};
+
+void setup() {
+${arduinoSerialSetupCode(settings, profile)}
+${expandDisplayLines(driver.setupLines || ["{display}.begin(SSD1306_SWITCHCAPVCC, 0x3C);"], settings, profile)}
+    ${settings.displayObject}.setRotation(${settings.rotation});
+    ${settings.displayObject}.setTextWrap(false);
+    ${settings.displayObject}.clearDisplay();
+
+    ${arduinoInputSetup(settings, "menuInput")}
+    display_t display = make_display(BM_TEXT_COLUMNS, BM_VIEW_ROWS + 1, 0, &BM_MONO_DISPLAY_OPS);
+    menuRuntime = menu_runtime_t::make(${menuName}, display, input, false);
+    menuRuntime.set_show_title(true);
+    menuRuntime.set_show_breadcrumbs(true);${navigationSetupCode("menuRuntime")}
+    menuRuntime.begin();
+}
+
+void loop() {
+    menuRuntime.service();
+}
+
+// Profile: ${profile.label}
+`;
+}
+
+function generateU8g2Sketch(profileId) {
+  const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
+  const settings = settingsForProfile(profileId);
+  const profile = targetProfileById(settings.profileId);
+  const driver = profile.displayDriver || {};
+  const width = Math.max(64, numberOr(settings.width, 128));
+  const height = Math.max(32, numberOr(settings.height, 64));
+  const rowH = height <= 32 ? 8 : 10;
+  const viewRows = Math.max(1, Math.floor(height / rowH) - 1);
+  const displayCols = Math.max(8, Math.min(32, Math.floor(width / 6)));
+  const iconSize = height <= 32 ? 7 : 9;
+  return `${displayIncludeLines(driver)}
+#include <BetterMenu.h>
+${arduinoInputInclude(settings)}
+
+#include <string.h>
+
+#include "${driver.assetHeader || "BetterMenuMonoAssets.h"}"
+
+${expandDisplayTemplate(driver.constructor || "static U8G2_SSD1306_128X64_NONAME_F_HW_I2C {display}(U8G2_R0, U8X8_PIN_NONE);", settings, profile)}
+static menu_runtime_t menuRuntime;
+${arduinoInputGlobals(settings, "menuInput")}
+
+${generateSupportCode()}
+
+static const auto ${menuName} =
+${menuExpression(model.rootMenuId, 0)};
+
+static const int BM_SCREEN_W = ${width};
+static const int BM_SCREEN_H = ${height};
+static const int BM_ROW_H = ${rowH};
+static const int BM_ICON_SIZE = ${iconSize};
+static const uint8_t BM_VIEW_ROWS = ${viewRows};
+static const uint8_t BM_TEXT_COLUMNS = ${displayCols};
+
+static void stripLabel(char *text) {
+    while (*text == '>' || *text == ' ') {
+        memmove(text, text + 1, strlen(text));
+    }
+    char *edit = strstr(text, "  (edit)");
+    if (edit) {
+        *edit = '\\0';
+    }
+}
+
+static char *splitValue(char *text) {
+    char *colon = strchr(text, ':');
+    if (!colon) {
+        return 0;
+    }
+    *colon = '\\0';
+    ++colon;
+    while (*colon == ' ') {
+        ++colon;
+    }
+    return colon;
+}
+
+${generateMonoIconLookup()}
+
+static int batteryPercent(void) {
+${generateAdafruitBatteryCode()}
+}
+
+static void drawMonoIcon(int16_t x, int16_t y, const BMMonoIconAsset *icon, uint8_t color) {
+    ${settings.displayObject}.setDrawColor(color ? 1 : 0);
+    if (!icon || !icon->bits) {
+        ${settings.displayObject}.drawCircle(x + 4, y + 4, 3);
+        return;
+    }
+    for (uint8_t py = 0; py < icon->height; ++py) {
+        for (uint8_t px = 0; px < icon->width; ++px) {
+            uint16_t index = static_cast<uint16_t>(py) * icon->width + px;
+            if (bmMonoIconBit(icon, index)) {
+                ${settings.displayObject}.drawPixel(x + px, y + py);
+            }
+        }
+    }
+}
+
+static void drawMonoStatus(void) {
+${generateMonoStatusCode("u8g2", settings.displayObject)}
+}
+
+static void u8g2Clear(void *) {
+    ${settings.displayObject}.clearBuffer();
+    ${settings.displayObject}.setFont(u8g2_font_5x8_tf);
+}
+
+static void u8g2Flush(void *) {
+    ${settings.displayObject}.sendBuffer();
+}
+
+static void u8g2RenderLine(void *, menu_render_line_t const *line) {
+    if (!line) {
+        return;
+    }
+    int16_t y = line->row * BM_ROW_H;
+    if (line->kind == MENU_RENDER_BLANK) {
+        ${settings.displayObject}.setDrawColor(0);
+        ${settings.displayObject}.drawBox(0, y, BM_SCREEN_W, BM_ROW_H);
+        ${settings.displayObject}.setDrawColor(1);
+        return;
+    }
+    if (line->kind == MENU_RENDER_TITLE) {
+        ${settings.displayObject}.setDrawColor(0);
+        ${settings.displayObject}.drawBox(0, 0, BM_SCREEN_W, BM_ROW_H);
+        ${settings.displayObject}.setDrawColor(1);
+        if (line->flags & MENU_RENDER_BACK_AVAILABLE) {
+            ${settings.displayObject}.drawStr(0, BM_ROW_H - 2, "<");
+        }
+        ${settings.displayObject}.drawStr((line->flags & MENU_RENDER_BACK_AVAILABLE) ? 8 : 0, BM_ROW_H - 2, line->text ? line->text : "");
+        drawMonoStatus();
+        return;
+    }
+    if (line->kind != MENU_RENDER_ITEM) {
+        return;
+    }
+    bool selected = (line->flags & MENU_RENDER_SELECTED) != 0;
+    bool disabled = (line->flags & MENU_RENDER_DISABLED) != 0;
+    bool editing = (line->flags & MENU_RENDER_EDITING) != 0;
+    ${settings.displayObject}.setDrawColor(selected ? 1 : 0);
+    ${settings.displayObject}.drawBox(0, y, BM_SCREEN_W, BM_ROW_H);
+    char label[MENU_MAX_LINE];
+    strncpy(label, line->text ? line->text : "", sizeof(label));
+    label[sizeof(label) - 1] = '\\0';
+    stripLabel(label);
+    char *value = splitValue(label);
+    uint8_t fg = selected ? 0 : 1;
+    if (disabled) {
+        fg = 1;
+    }
+    ${settings.displayObject}.setDrawColor(fg);
+    drawMonoIcon(1, y + 1, bmMonoIconForLabel(label), fg);
+    ${settings.displayObject}.drawStr(BM_ICON_SIZE + 3, y + BM_ROW_H - 2, label);
+    if (value) {
+        int16_t x = BM_SCREEN_W - static_cast<int16_t>(strlen(value)) * 6 - 1;
+        if (x < BM_ICON_SIZE + 42) {
+            x = BM_ICON_SIZE + 42;
+        }
+        ${settings.displayObject}.drawStr(x, y + BM_ROW_H - 2, value);
+    }
+    if (editing) {
+        ${settings.displayObject}.drawFrame(BM_SCREEN_W - 8, y + 1, 7, BM_ROW_H - 2);
+    }
+    ${settings.displayObject}.setDrawColor(1);
+}
+
+static display_ops_t const BM_U8G2_DISPLAY_OPS = {
+    &u8g2Clear,
+    0,
+    &u8g2Flush,
+    &u8g2RenderLine
+};
+
+void setup() {
+${arduinoSerialSetupCode(settings, profile)}
+${expandDisplayLines(driver.setupLines || ["{display}.begin();"], settings, profile)}
+    ${settings.displayObject}.setFont(u8g2_font_5x8_tf);
+
+    ${arduinoInputSetup(settings, "menuInput")}
+    display_t display = make_display(BM_TEXT_COLUMNS, BM_VIEW_ROWS + 1, 0, &BM_U8G2_DISPLAY_OPS);
+    menuRuntime = menu_runtime_t::make(${menuName}, display, input, false);
+    menuRuntime.set_show_title(true);
+    menuRuntime.set_show_breadcrumbs(true);${navigationSetupCode("menuRuntime")}
+    menuRuntime.begin();
+}
+
+void loop() {
+    menuRuntime.service();
+}
+
+// Profile: ${profile.label}
+`;
+}
+
+function generateCharacterLcdSketch(profileId) {
+  const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
+  const settings = settingsForProfile(profileId);
+  const profile = targetProfileById(settings.profileId);
+  const driver = profile.displayDriver || {};
+  const width = Math.max(8, numberOr(settings.width, 16));
+  const height = Math.max(1, numberOr(settings.height, 2));
+  return `${displayIncludeLines(driver)}
+#include <BetterMenu.h>
+${arduinoInputInclude(settings)}
+
+${displayPinDefines(driver, settings)}
+
+${expandDisplayTemplate(driver.constructor || "static LiquidCrystal {display}(LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7);", settings, profile)}
+static menu_runtime_t menuRuntime;
+${arduinoInputGlobals(settings, "menuInput")}
+
+${generateSupportCode()}
+
+static const auto ${menuName} =
+${menuExpression(model.rootMenuId, 0)};
+
+static void lcdClear(void *) {
+    ${settings.displayObject}.clear();
+}
+
+static void lcdWriteLine(void *, uint8_t row, char const *text) {
+    ${settings.displayObject}.setCursor(0, row);
+    bool ended = (text == 0);
+    for (uint8_t col = 0; col < ${width}; ++col) {
+        char ch = ended ? '\\0' : text[col];
+        if (ch == '\\0') {
+            ended = true;
+        }
+        ${settings.displayObject}.print(ch ? ch : ' ');
+    }
+}
+
+static void lcdFlush(void *) {
+}
+
+static display_ops_t const BM_LCD_DISPLAY_OPS = {
+    &lcdClear,
+    &lcdWriteLine,
+    &lcdFlush,
+    0
+};
+
+void setup() {
+${arduinoSerialSetupCode(settings, profile)}
+${expandDisplayLines(driver.setupLines || ["{display}.begin({width}, {height});"], settings, profile)}
+
+    ${arduinoInputSetup(settings, "menuInput")}
+    display_t display = make_display(${width}, ${height}, 0, &BM_LCD_DISPLAY_OPS);
+    menuRuntime = menu_runtime_t::make(${menuName}, display, input, false);
+    menuRuntime.set_show_title(true);
+    menuRuntime.set_show_breadcrumbs(true);${navigationSetupCode("menuRuntime")}
+    menuRuntime.begin();
+}
+
+void loop() {
+    menuRuntime.service();
+}
+
+// Profile: ${profile.label}
+// Replace placeholder LCD pin constants with the wiring for the target board.
+`;
+}
+
 function generateAdafruitSketch() {
   const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
   const settings = settingsForProfile("adafruit-ili9341-320x240-spi");
@@ -2048,7 +3030,10 @@ function generateAdafruitSketch() {
 #include <BetterMenu.h>
 ${arduinoInputInclude(settings)}
 
-#include "BetterMenuGeneratedAssets.h"
+#include <stdio.h>
+#include <string.h>
+
+#include "BetterMenuRgb565Assets.h"
 
 #define ${settings.pins.cs} 10
 #define ${settings.pins.dc} 9
@@ -2241,9 +3226,7 @@ static display_ops_t const ADAFRUIT_DISPLAY_OPS = {
 };
 
 void setup() {
-    Serial.begin(${settings.serialBaud});
-    while (!Serial) {
-    }
+${arduinoSerialSetupCode(settings, profile)}
     ${settings.displayObject}.begin();
     ${settings.displayObject}.setRotation(${settings.rotation});
     ${settings.displayObject}.setTextWrap(false);
@@ -2266,21 +3249,12 @@ void loop() {
 `;
 }
 
-function generateTargetPackageFiles(files) {
+function generateTargetPackageFiles(targetFiles) {
   const profile = targetProfileById(model.targetSettings.profileId);
   return {
     profile: profile.id,
     profileLabel: profile.label,
-    files: {
-      "BetterMenuDeclaration.h": generateFirmwareDeclaration(),
-      "BetterMenuSerialDemo.ino": generateFirmwareSketch(),
-      "BetterMenuAnsiSerialDemo.ino": files.ansiSketch,
-      "BetterMenuStdioDemo.cpp": generateStdioProgram(),
-      "bettermenu_wasm.cpp": files.bridge,
-      "web-package-manifest.json": generateWebPackageFiles(files.bridge),
-      "BetterMenuAdafruitILI9341.ino": files.adafruitSketch,
-      "BetterMenuGeneratedAssets.h": files.adafruitAssets
-    },
+    files: targetFiles.files || {},
     instructions: profileInstructions(profile)
   };
 }
@@ -2300,6 +3274,21 @@ ${lines.join("\n") || "    (void)label;"}
 }`;
 }
 
+function generateMonoIconLookup() {
+  const lines = [];
+  const seen = new Set();
+  for (const item of model.items) {
+    const asset = assetForItem(item);
+    if (!asset?.encoded || seen.has(`${item.label}:${asset.id}`)) continue;
+    seen.add(`${item.label}:${asset.id}`);
+    lines.push(`    if (strcmp(label, ${cppString(item.label)}) == 0) { return &${assetSymbol(asset)}; }`);
+  }
+  return `static const BMMonoIconAsset *bmMonoIconForLabel(const char *label) {
+${lines.join("\n") || "    (void)label;"}
+    return 0;
+}`;
+}
+
 function generateAdafruitBatteryCode() {
   const widget = firstStatusWidget(model.statusWidgets, "battery");
   if (!widget?.sourceSymbol) {
@@ -2312,6 +3301,44 @@ function generateAdafruitBatteryCode() {
     if (pct < 0) pct = 0;
     if (pct > 100) pct = 100;
     return static_cast<int>(pct);`;
+}
+
+function generateMonoStatusCode(kind, displayObject) {
+  const chip = firstStatusWidget(model.statusWidgets, "chip");
+  const battery = firstStatusWidget(model.statusWidgets, "battery");
+  const lines = [];
+  const drawOn = kind === "u8g2"
+    ? `${displayObject}.setDrawColor(1);`
+    : "";
+  if (battery) {
+    if (kind === "u8g2") {
+      lines.push(`    int pct = batteryPercent();
+    int16_t bx = BM_SCREEN_W - 18;
+    ${displayObject}.setDrawColor(1);
+    ${displayObject}.drawFrame(bx, 1, 14, 7);
+    ${displayObject}.drawBox(bx + 14, 3, 2, 3);
+    ${displayObject}.drawBox(bx + 2, 3, (10 * pct) / 100, 3);`);
+    } else {
+      lines.push(`    int pct = batteryPercent();
+    int16_t bx = BM_SCREEN_W - 18;
+    ${displayObject}.drawRect(bx, 1, 14, 7, 1);
+    ${displayObject}.fillRect(bx + 14, 3, 2, 3, 1);
+    ${displayObject}.fillRect(bx + 2, 3, (10 * pct) / 100, 3, 1);`);
+    }
+  }
+  if (chip?.sourceSymbol) {
+    if (kind === "u8g2") {
+      lines.push(`    if (${chip.sourceSymbol}) {
+        ${displayObject}.setDrawColor(1);
+        ${displayObject}.drawDisc(BM_SCREEN_W - 24, 4, 2);
+    }`);
+    } else {
+      lines.push(`    if (${chip.sourceSymbol}) {
+        ${displayObject}.fillCircle(BM_SCREEN_W - 24, 4, 2, 1);
+    }`);
+    }
+  }
+  return lines.length ? lines.join("\n") : `    ${drawOn}\n    return;`;
 }
 
 function generateAdafruitHeaderStatusCode(displayObject) {
@@ -2372,8 +3399,11 @@ function collectDiagnostics() {
         diagnostics.push(`Asset ${asset.key || asset.id} is not export-safe: ${error.message || String(error)}.`);
       }
     }
-    if (profile.id === "adafruit-ili9341-320x240-spi" && usedAssetList.includes(asset) && !asset.encoded?.rgb565?.length) {
-      diagnostics.push(`Asset ${asset.key || asset.id} is used by the Adafruit target but has not been RGB565 encoded yet.`);
+    if (profile.assetEncoding === "rgb565" && usedAssetList.includes(asset) && !asset.encoded?.rgb565?.length) {
+      diagnostics.push(`Asset ${asset.key || asset.id} is used by ${profile.label} but has not been RGB565 encoded yet.`);
+    }
+    if (profile.assetEncoding === "mono1" && usedAssetList.includes(asset) && !asset.encoded?.mask?.length) {
+      diagnostics.push(`Asset ${asset.key || asset.id} is used by ${profile.label} but has not been encoded as a 1-bit bitmap yet.`);
     }
   }
   diagnostics.push(...statusWidgetDiagnostics(model.statusWidgets));
@@ -2408,9 +3438,12 @@ function collectDiagnostics() {
       diagnostics.push(`${label} references source symbol ${symbol}, but it is not in the support snippets and generated stubs are off.`);
     }
   }
-  if (profile.id === "adafruit-ili9341-320x240-spi") {
-    if (!model.targetSettings.width || !model.targetSettings.height) diagnostics.push("Adafruit ILI9341 target needs non-zero width and height.");
-    if (!model.targetSettings.displayObject?.trim()) diagnostics.push("Adafruit ILI9341 target needs a display object name.");
+  if (["color-gfx", "mono-gfx", "u8g2", "character-lcd"].includes(profile.outputKind)) {
+    if (!model.targetSettings.width || !model.targetSettings.height) diagnostics.push(`${profile.label} target needs non-zero width and height.`);
+    if (!model.targetSettings.displayObject?.trim()) diagnostics.push(`${profile.label} target needs a display object name.`);
+  }
+  if (profile.outputKind === "color-gfx" && model.targetSettings.width < 220 && model.targetSettings.skinId === "rover-console") {
+    diagnostics.push(`${profile.label} uses a compact RoverConsole layout because the display is smaller than 220 pixels wide.`);
   }
   const requireCppSymbol = (item, symbol, role) => {
     if (!symbol?.trim()) return;
@@ -2725,6 +3758,12 @@ function downloadText(filename, text) {
 }
 
 function outputFilename() {
+  if (els.outputSelect.value === "targetSketch") {
+    return generateSelectedTargetFiles().sketchName || "BetterMenuTarget.ino";
+  }
+  if (els.outputSelect.value === "targetAssets") {
+    return generateSelectedTargetFiles().assetName || "BetterMenuTargetAssets.txt";
+  }
   const map = {
     firmwareDeclaration: "BetterMenuDeclaration.h",
     firmwareSketch: "BetterMenuSerialDemo.ino",
@@ -2732,8 +3771,10 @@ function outputFilename() {
     stdioProgram: "BetterMenuStdioDemo.cpp",
     wasmBridgeCpp: "bettermenu_wasm.cpp",
     webPackageFiles: "web-package-manifest.json",
+    targetSketch: "BetterMenuTarget.ino",
+    targetAssets: "BetterMenuTargetAssets.h",
     adafruitSketch: "BetterMenuAdafruitILI9341.ino",
-    adafruitAssets: "BetterMenuGeneratedAssets.h",
+    adafruitAssets: "BetterMenuRgb565Assets.h",
     targetPackageFiles: "target-package-manifest.json",
     diagnostics: "diagnostics.txt"
   };

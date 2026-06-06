@@ -14,4 +14,4 @@ This directory is the long-form documentation for BetterMenu. The root README st
 - [BetterMenu Builder](https://ripred.github.io/BetterMenu/menu-builder/)
 - [RoverConsole WebAssembly demo](https://ripred.github.io/BetterMenu/web-adapter/)
 
-The builder is static and export-only. It does not require local-file access, a browser compiler, accounts, or a backend.
+The builder is static and export-only. It does not require local-file access, a browser compiler, accounts, or a backend. Its display profiles cover text, terminal, WebAssembly/DOM, Adafruit_GFX, TFT_eSPI, U8g2, LiquidCrystal, and hd44780 starter packages.

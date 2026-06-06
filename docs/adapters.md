@@ -12,6 +12,8 @@ For richer displays, `display_ops_t::render_line` can receive `menu_render_line_
 
 `examples/AnsiSerialTerminal` uses that path for a fixed terminal region, `examples/CYDAuroraPanel` shows the simplest graphical pattern, and `examples/CYDRoverConsole` shows an advanced adapter that also uses caller-supplied display context to inspect the active runtime and draw proportional scroll position.
 
+The Builder can export starter display adapters for the same API shape. Current generated targets include Arduino Serial, ANSI Serial, desktop stdio, WebAssembly/DOM, Adafruit_GFX color and monochrome displays, TFT_eSPI 320x240 displays, U8g2 monochrome OLEDs, LiquidCrystal character LCDs, and hd44780 I2C character LCDs. The selected display profile and input adapter are independent choices.
+
 Display adapters implement clear, write-line, and flush:
 
 ```cpp
