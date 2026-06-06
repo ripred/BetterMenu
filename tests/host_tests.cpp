@@ -609,6 +609,54 @@ static int test_render_stops_before_item_index_wraparound() {
     return 0;
 }
 
+static int test_navigation_clamps_by_default() {
+    auto root_menu =
+        MENU("Navigation",
+            ITEM_FUNC("One", test_action),
+            ITEM_FUNC("Two", test_action),
+            ITEM_FUNC("Three", test_action)
+        );
+
+    choice_t const choices[] = {
+        Choice_Up,
+        Choice_Down,
+        Choice_Down,
+        Choice_Down
+    };
+    script_ctx_t script = { choices, array_count(choices), 0, Choice_Invalid };
+    menu_runtime_t runtime = menu_runtime_t::make(root_menu, test_display(32, 3), script_input(script), false);
+
+    run_until_idle(runtime, script);
+
+    assert(runtime.navigation_wrap == 0);
+    assert(runtime.stack[0].selected == 2);
+    assert(strcmp(g_display_ctx.lines[2], ">Three") == 0);
+    return 0;
+}
+
+static int test_navigation_wraps_when_enabled() {
+    auto root_menu =
+        MENU("Navigation",
+            ITEM_FUNC("One", test_action),
+            ITEM_FUNC("Two", test_action),
+            ITEM_FUNC("Three", test_action)
+        );
+
+    choice_t const choices[] = {
+        Choice_Up
+    };
+    script_ctx_t script = { choices, array_count(choices), 0, Choice_Invalid };
+    menu_runtime_t runtime = menu_runtime_t::make(root_menu, test_display(32, 3), script_input(script), false);
+    runtime.set_navigation_mode(MENU_NAV_WRAP);
+
+    run_until_idle(runtime, script);
+
+    assert(runtime.navigation_wrap == 1);
+    assert(runtime.stack[0].selected == 2);
+    assert(strcmp(g_display_ctx.lines[2], ">Three") == 0);
+    return 0;
+}
+
 static int test_service_clamps_large_menu_to_full_window() {
     int fake_menu = 0;
     menu_runtime_t runtime = menu_runtime_t::base_init(&fake_menu, &FAKE_LARGE_MENU_OPS, test_display(32, 20), true);
@@ -1911,6 +1959,8 @@ int main(int argc, char **argv) {
         if (strcmp(argv[1], "int-min") == 0) { return test_int_min_formats_safely(); }
         if (strcmp(argv[1], "clamp") == 0) { return test_clamp_view_uses_non_wrapping_window_math(); }
         if (strcmp(argv[1], "render-wrap") == 0) { return test_render_stops_before_item_index_wraparound(); }
+        if (strcmp(argv[1], "nav-clamp") == 0) { return test_navigation_clamps_by_default(); }
+        if (strcmp(argv[1], "nav-wrap") == 0) { return test_navigation_wraps_when_enabled(); }
         if (strcmp(argv[1], "service-window") == 0) { return test_service_clamps_large_menu_to_full_window(); }
         if (strcmp(argv[1], "max-count") == 0) { return test_render_handles_maximum_menu_count(); }
         if (strcmp(argv[1], "max-select") == 0) { return test_select_wraps_at_maximum_value_count(); }
@@ -1968,6 +2018,8 @@ int main(int argc, char **argv) {
     test_int_min_formats_safely();
     test_clamp_view_uses_non_wrapping_window_math();
     test_render_stops_before_item_index_wraparound();
+    test_navigation_clamps_by_default();
+    test_navigation_wraps_when_enabled();
     test_service_clamps_large_menu_to_full_window();
     test_render_handles_maximum_menu_count();
     test_select_wraps_at_maximum_value_count();

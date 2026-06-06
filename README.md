@@ -139,6 +139,8 @@ Call `menuRuntime.request_redraw()` after project code changes a backing value, 
 
 Call `menuRuntime.reset_navigation()` when project code needs to return to the root menu, clear any active integer edit, and re-render from the top. This keeps that common menu behavior in the library instead of duplicating it in every sketch.
 
+Navigation clamps at the first and last selectable rows by default. Call `menuRuntime.set_navigation_wrap(true)` or `menuRuntime.set_navigation_mode(MENU_NAV_WRAP)` after construction when a project wants Up at the first row or Down at the last row to rotate to the opposite end.
+
 Use `menuRuntime.set_persistence(load, save, ctx)` when a project wants shared persistence hooks. `load_persistence()` calls the load hook and requests a redraw; committed value changes call the save hook after any per-item change callback.
 
 ## Display and Input

@@ -35,6 +35,8 @@
     <section class="workspace">
       <nav class="tabs" aria-label="Builder views">
         <button class="tab active" type="button" data-tab="builder">Builder</button>
+        <button class="tab" type="button" data-tab="assets">Assets</button>
+        <button class="tab" type="button" data-tab="target">Target</button>
         <button class="tab" type="button" data-tab="preview">Preview</button>
         <button class="tab" type="button" data-tab="outputs">Outputs</button>
         <button class="tab" type="button" data-tab="instructions">Instructions</button>
@@ -93,6 +95,125 @@
         </section>
       </section>
 
+      <section class="tab-panel" data-panel="assets">
+        <div class="assets-grid">
+          <section class="panel" aria-label="Asset library">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-label">Asset model</p>
+                <h2>Icons and bitmaps</h2>
+              </div>
+              <button type="button" id="load-rover-assets">Load RoverConsole icons</button>
+            </div>
+            <div id="asset-list" class="asset-list" aria-label="Project assets"></div>
+          </section>
+
+          <section class="panel" aria-label="Add assets">
+            <div class="panel-heading">
+              <div>
+                <p class="panel-label">Local asset import</p>
+                <h2>Add asset</h2>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="asset-key">Asset key</label>
+                <input id="asset-key" type="text" placeholder="battery">
+              </div>
+              <div class="field">
+                <label for="asset-size">Target icon size</label>
+                <input id="asset-size" type="number" min="8" max="96" value="18">
+              </div>
+            </div>
+            <div class="field">
+              <label for="asset-svg-source">Paste SVG source</label>
+              <textarea id="asset-svg-source" spellcheck="false" placeholder="<svg ...></svg>"></textarea>
+            </div>
+            <div class="button-row">
+              <button type="button" id="add-svg-asset">Add pasted SVG</button>
+              <label class="file-button" for="asset-svg-file">Upload SVG</label>
+              <input id="asset-svg-file" type="file" accept=".svg,image/svg+xml">
+            </div>
+            <hr>
+            <div class="form-grid">
+              <div class="field compact">
+                <label class="file-button" for="asset-raster-file">Upload image</label>
+                <input id="asset-raster-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+              </div>
+              <div class="field compact">
+                <label class="file-button" for="asset-mask-file">Optional mask image</label>
+                <input id="asset-mask-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+              </div>
+            </div>
+            <div class="button-row">
+              <button type="button" id="add-raster-asset">Add image asset</button>
+            </div>
+            <p class="muted">SVGs are sanitized before preview/export. Images and masks are decoded in browser memory and stored as project data, never as local paths.</p>
+          </section>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="target">
+        <section class="panel" aria-label="Target profile">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-label">Adapter generator</p>
+              <h2>Target profile</h2>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label for="target-profile">Profile</label>
+              <select id="target-profile"></select>
+            </div>
+            <div class="field">
+              <label for="target-skin">Renderer skin</label>
+              <select id="target-skin"></select>
+            </div>
+            <div class="field">
+              <label for="target-width">Width</label>
+              <input id="target-width" data-target-prop="width" type="number" min="0">
+            </div>
+            <div class="field">
+              <label for="target-height">Height</label>
+              <input id="target-height" data-target-prop="height" type="number" min="0">
+            </div>
+            <div class="field">
+              <label for="target-rotation">Rotation</label>
+              <input id="target-rotation" data-target-prop="rotation" type="number" min="0">
+            </div>
+            <div class="field">
+              <label for="target-display-object">Display object</label>
+              <input id="target-display-object" data-target-prop="displayObject" type="text">
+            </div>
+            <div class="field">
+              <label for="target-pin-cs">CS pin constant</label>
+              <input id="target-pin-cs" data-target-pin="cs" type="text">
+            </div>
+            <div class="field">
+              <label for="target-pin-dc">DC pin constant</label>
+              <input id="target-pin-dc" data-target-pin="dc" type="text">
+            </div>
+            <div class="field">
+              <label for="target-pin-rst">RST pin constant</label>
+              <input id="target-pin-rst" data-target-pin="rst" type="text">
+            </div>
+            <div class="field">
+              <label for="target-input-adapter">Input adapter</label>
+              <select id="target-input-adapter" data-target-prop="inputAdapter">
+                <option value="serial-keys">Serial keys</option>
+                <option value="stdio-keys">stdio keys</option>
+              </select>
+            </div>
+            <label class="checkline target-check">
+              <input id="target-navigation-wrap" data-target-prop="navigationWrap" type="checkbox">
+              Wrap at menu ends
+            </label>
+          </div>
+          <div id="target-summary" class="target-summary"></div>
+        </section>
+      </section>
+
       <section class="tab-panel" data-panel="preview">
         <div class="preview-grid">
           <section class="panel preview-shell" aria-label="Generated menu preview">
@@ -101,16 +222,28 @@
                 <p class="panel-label">Browser preview</p>
                 <h2>Generated menu</h2>
               </div>
-              <div class="button-row">
-                <button type="button" data-choice="3">Up</button>
-                <button type="button" data-choice="4">Down</button>
-                <button type="button" data-choice="1">Left</button>
-                <button type="button" data-choice="2">Right</button>
-                <button type="button" data-choice="5">Select</button>
-                <button type="button" data-choice="6">Back</button>
+            </div>
+            <div class="preview-workspace">
+              <div class="preview-display-stack">
+                <div class="preview-display-toolbar" aria-label="Preview zoom">
+                  <button type="button" id="preview-zoom-out" aria-label="Zoom out" title="Zoom out"></button>
+                  <span id="preview-zoom-label" aria-live="polite">100%</span>
+                  <button type="button" id="preview-zoom-in" aria-label="Zoom in" title="Zoom in"></button>
+                </div>
+                <div id="preview-frame" class="preview-frame">
+                  <div id="preview-menu" class="preview-menu" aria-label="Menu preview"></div>
+                </div>
+              </div>
+
+              <div class="preview-remote" aria-label="Menu controls">
+                <button class="remote-button remote-up" type="button" data-choice="3" aria-label="Move up" title="Move up"></button>
+                <button class="remote-button remote-left" type="button" data-choice="1" aria-label="Move left" title="Move left"></button>
+                <button class="remote-button remote-select" type="button" data-choice="5" aria-label="Select" title="Select"></button>
+                <button class="remote-button remote-right" type="button" data-choice="2" aria-label="Move right" title="Move right"></button>
+                <button class="remote-button remote-down" type="button" data-choice="4" aria-label="Move down" title="Move down"></button>
+                <button class="remote-button remote-back" type="button" data-choice="6" aria-label="Back" title="Back"></button>
               </div>
             </div>
-            <div id="preview-menu" class="preview-menu" aria-label="Menu preview"></div>
           </section>
           <section class="panel" aria-label="Preview details">
             <p class="panel-label">Selected item</p>
@@ -145,6 +278,9 @@
               <option value="stdioProgram">Desktop C++ stdio program</option>
               <option value="wasmBridgeCpp">WebAssembly bridge source</option>
               <option value="webPackageFiles">Web package manifest</option>
+              <option value="adafruitSketch">Adafruit ILI9341 sketch</option>
+              <option value="adafruitAssets">Adafruit asset header</option>
+              <option value="targetPackageFiles">Target package manifest</option>
               <option value="diagnostics">Diagnostics</option>
             </select>
           </div>

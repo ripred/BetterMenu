@@ -1,4 +1,25 @@
-const storageKey = "bettermenu.menuBuilder.project.v2";
+import {
+  SKINS,
+  TARGET_PROFILES,
+  defaultTargetSettings,
+  normalizeTargetSettings,
+  profileInstructions,
+  targetProfileById
+} from "./target_profiles.mjs";
+import {
+  assetCssUrl,
+  defaultRoverAssets,
+  encodeAssetForRgb565,
+  fileToDataUrl,
+  formatMaskArray,
+  formatRgb565Array,
+  makeSvgAsset,
+  safeAssetName,
+  sanitizeSvgSource,
+  usedAssets
+} from "./asset_utils.mjs";
+
+const storageKey = "bettermenu.menuBuilder.project.v3";
 
 const itemTypes = [
   ["int", "ITEM_INT"],
@@ -37,7 +58,11 @@ const els = {
   generateStubs: document.querySelector("#generate-stubs"),
   backingSnippet: document.querySelector("#backing-snippet"),
   callbackSnippet: document.querySelector("#callback-snippet"),
+  previewFrame: document.querySelector("#preview-frame"),
   previewMenu: document.querySelector("#preview-menu"),
+  previewZoomOut: document.querySelector("#preview-zoom-out"),
+  previewZoomIn: document.querySelector("#preview-zoom-in"),
+  previewZoomLabel: document.querySelector("#preview-zoom-label"),
   previewTitle: document.querySelector("#preview-title"),
   previewBody: document.querySelector("#preview-body"),
   outputSelect: document.querySelector("#output-select"),
@@ -48,7 +73,29 @@ const els = {
   loadJson: document.querySelector("#load-json"),
   loadSample: document.querySelector("#load-sample"),
   clearModel: document.querySelector("#clear-model"),
-  instructions: document.querySelector("#instructions")
+  instructions: document.querySelector("#instructions"),
+  assetList: document.querySelector("#asset-list"),
+  assetKey: document.querySelector("#asset-key"),
+  assetSize: document.querySelector("#asset-size"),
+  assetSvgSource: document.querySelector("#asset-svg-source"),
+  addSvgAsset: document.querySelector("#add-svg-asset"),
+  assetSvgFile: document.querySelector("#asset-svg-file"),
+  assetRasterFile: document.querySelector("#asset-raster-file"),
+  assetMaskFile: document.querySelector("#asset-mask-file"),
+  addRasterAsset: document.querySelector("#add-raster-asset"),
+  loadRoverAssets: document.querySelector("#load-rover-assets"),
+  targetProfile: document.querySelector("#target-profile"),
+  targetSkin: document.querySelector("#target-skin"),
+  targetWidth: document.querySelector("#target-width"),
+  targetHeight: document.querySelector("#target-height"),
+  targetRotation: document.querySelector("#target-rotation"),
+  targetDisplayObject: document.querySelector("#target-display-object"),
+  targetPinCs: document.querySelector("#target-pin-cs"),
+  targetPinDc: document.querySelector("#target-pin-dc"),
+  targetPinRst: document.querySelector("#target-pin-rst"),
+  targetInputAdapter: document.querySelector("#target-input-adapter"),
+  targetNavigationWrap: document.querySelector("#target-navigation-wrap"),
+  targetSummary: document.querySelector("#target-summary")
 };
 
 let selectedMenuId = "root";
@@ -60,7 +107,7 @@ let preview = createPreviewState(model);
 
 function defaultModel() {
   return {
-    version: 1,
+    version: 2,
     projectName: "New BetterMenu Project",
     rootMenuId: "root",
     generateStubs: true,
@@ -73,13 +120,23 @@ function defaultModel() {
       callbacks: ""
     },
     icons: {},
-    content: {}
+    content: {},
+    assets: [],
+    statusWidgets: [],
+    targetSettings: defaultTargetSettings("arduino-serial"),
+    previewSettings: {
+      skinId: "text-rows",
+      visibleRows: 5,
+      zoom: 1
+    }
   };
 }
 
 function roverConsoleModel() {
+  const assets = defaultRoverAssets();
+  const assetId = (key) => assets.find((asset) => asset.key === key)?.id || "";
   return {
-    version: 1,
+    version: 2,
     projectName: "RoverConsole Builder Demo",
     rootMenuId: "root",
     generateStubs: false,
@@ -90,41 +147,52 @@ function roverConsoleModel() {
       { id: "system", title: "System", itemIds: ["brightness", "theme", "screenFlip", "devTools", "firmware", "uptime"] }
     ],
     items: [
-      selectItem("drive", "Drive mode", "driveMode", [["Idle", 0], ["Manual", 1], ["Auto", 2], ["Follow", 3]], 1, "compass", "A fixed-choice select row for rover operating mode."),
-      intItem("maxSpeed", "Max speed", "maxSpeedPct", 0, 100, 5, 65, "speed", "An editable integer row formatted as a percentage.", formatDec("formatPercent", "&maxSpeedPct")),
-      boolItem("headlights", "Headlights", "headlights", "Off", "On", false, "beam", "A boolean row rendered through BetterMenu value labels."),
-      valueItem("pitchTrim", "Pitch trim", "getInt", "setInt", "&pitchTrimTenth", -50, 50, 1, "level", "A mutable getter/setter value row with a signed degree formatter.", formatDec("formatTrim", "&pitchTrimTenth")),
-      menuItem("pidMenu", "PID tuning", "pid", "sliders", "A child menu with mutable PID gains and a save action."),
-      menuItem("sensorsMenu", "Sensors", "sensors", "radar", "A child menu of read-only telemetry values."),
-      boolItem("telemetry", "Telemetry", "telemetryStream", "Quiet", "Stream", false, "broadcast", "A boolean row with an on-change callback.", onChangeDec("onChanged", "0")),
-      intItem("telemetryRate", "Telemetry rate", "telemetryHz", 1, 50, 1, 5, "clock", "A disabled row until telemetry streaming is enabled.", mergeDecorators(formatDec("formatHz", "&telemetryHz"), disabledDec("telemetryRateDisabled", "0"))),
-      funcItem("calibrate", "Calibrate IMU", "action", "crosshair", "A function row that forwards selection to firmware code."),
-      boolItem("armed", "Arm motors", "armed", "Safe", "Armed", false, "shield", "A boolean row using custom labels.", onChangeDec("onChanged", "0")),
-      funcItem("estop", "E-STOP", "action", "stop", "A high-priority function row carried through the same action path."),
-      menuItem("systemMenu", "System", "system", "gear", "Display preferences and system metadata."),
-      valueItem("kp", "Kp", "getInt", "setInt", "&kpMilli", 0, 5000, 10, "slider", "A mutable fixed-point value row.", formatDec("formatMilli2", "&kpMilli")),
-      valueItem("ki", "Ki", "getInt", "setInt", "&kiMilli", 0, 5000, 10, "slider", "A mutable fixed-point value row.", formatDec("formatMilli2", "&kiMilli")),
-      valueItem("kd", "Kd", "getInt", "setInt", "&kdMilli", 0, 5000, 10, "slider", "A mutable fixed-point value row.", formatDec("formatMilli2", "&kdMilli")),
-      intItem("loopRate", "Loop rate", "loopRateHz", 50, 400, 10, 200, "clock", "A standard integer row inside the PID submenu."),
-      funcItem("saveTune", "Save tune", "action", "save", "A function row for persisting PID values."),
-      valueItem("pitch", "Pitch", "getInt", "", "&pitchTenth", 0, 0, 1, "level", "A read-only value formatted as signed tenths of a degree.", formatDec("formatPitch", "&pitchTenth")),
-      valueItem("heading", "Heading", "getInt", "", "&headingDeg", 0, 0, 1, "compass", "A read-only heading value.", formatDec("formatHeading", "&headingDeg")),
-      valueItem("battery", "Battery", "getInt", "", "&battCentiV", 0, 0, 1, "battery", "A read-only centivolt value formatted as volts.", formatDec("formatVolts", "&battCentiV")),
-      valueItem("range", "Range", "getInt", "", "&rangeMm", 0, 0, 1, "radar", "A read-only distance value.", formatDec("formatMm", "&rangeMm")),
-      valueItem("cellTemp", "Cell temp", "getInt", "", "&cellTempC", 0, 0, 1, "thermo", "A read-only temperature value.", formatDec("formatTempC", "&cellTempC")),
-      intItem("brightness", "Brightness", "brightnessPct", 10, 100, 10, 80, "sun", "A display brightness integer row."),
-      selectItem("theme", "Theme", "themeSel", [["Aurora", 0], ["Slate", 1], ["Mono", 2]], 0, "swatch", "A select row that also controls the hidden Dev tools row."),
-      boolItem("screenFlip", "Screen flip", "screenFlip", "Off", "On", false, "flip", "A boolean display orientation row."),
-      funcItem("devTools", "Dev tools", "action", "tool", "A hidden row that appears only for the Mono theme.", hiddenDec("devToolsHidden", "0")),
-      valueItem("firmware", "Firmware", "getInt", "", "&uptimeMin", 0, 0, 1, "chip", "A formatted read-only value.", formatDec("formatFirmware", "0")),
-      valueItem("uptime", "Uptime", "getInt", "", "&uptimeMin", 0, 0, 1, "clock", "A formatted runtime value.", formatDec("formatUptime", "&uptimeMin"))
+      withIconAsset(selectItem("drive", "Drive mode", "driveMode", [["Idle", 0], ["Manual", 1], ["Auto", 2], ["Follow", 3]], 1, "compass", "A fixed-choice select row for rover operating mode."), assetId("compass")),
+      withIconAsset(intItem("maxSpeed", "Max speed", "maxSpeedPct", 0, 100, 5, 65, "speed", "An editable integer row formatted as a percentage.", formatDec("formatPercent", "&maxSpeedPct")), assetId("speed")),
+      withIconAsset(boolItem("headlights", "Headlights", "headlights", "Off", "On", false, "beam", "A boolean row rendered through BetterMenu value labels."), assetId("beam")),
+      withIconAsset(valueItem("pitchTrim", "Pitch trim", "getInt", "setInt", "&pitchTrimTenth", -50, 50, 1, "level", "A mutable getter/setter value row with a signed degree formatter.", formatDec("formatTrim", "&pitchTrimTenth")), assetId("level")),
+      withIconAsset(menuItem("pidMenu", "PID tuning", "pid", "sliders", "A child menu with mutable PID gains and a save action."), assetId("sliders")),
+      withIconAsset(menuItem("sensorsMenu", "Sensors", "sensors", "radar", "A child menu of read-only telemetry values."), assetId("radar")),
+      withIconAsset(boolItem("telemetry", "Telemetry", "telemetryStream", "Quiet", "Stream", false, "broadcast", "A boolean row with an on-change callback.", onChangeDec("onChanged", "0")), assetId("broadcast")),
+      withIconAsset(intItem("telemetryRate", "Telemetry rate", "telemetryHz", 1, 50, 1, 5, "clock", "A disabled row until telemetry streaming is enabled.", mergeDecorators(formatDec("formatHz", "&telemetryHz"), disabledDec("telemetryRateDisabled", "0"))), assetId("clock")),
+      withIconAsset(funcItem("calibrate", "Calibrate IMU", "action", "crosshair", "A function row that forwards selection to firmware code."), assetId("crosshair")),
+      withIconAsset(boolItem("armed", "Arm motors", "armed", "Safe", "Armed", false, "shield", "A boolean row using custom labels.", onChangeDec("onChanged", "0")), assetId("shield")),
+      withIconAsset(funcItem("estop", "E-STOP", "action", "stop", "A high-priority function row carried through the same action path."), assetId("stop")),
+      withIconAsset(menuItem("systemMenu", "System", "system", "gear", "Display preferences and system metadata."), assetId("gear")),
+      withIconAsset(valueItem("kp", "Kp", "getInt", "setInt", "&kpMilli", 0, 5000, 10, "slider", "A mutable fixed-point value row.", formatDec("formatMilli2", "&kpMilli")), assetId("slider")),
+      withIconAsset(valueItem("ki", "Ki", "getInt", "setInt", "&kiMilli", 0, 5000, 10, "slider", "A mutable fixed-point value row.", formatDec("formatMilli2", "&kiMilli")), assetId("slider")),
+      withIconAsset(valueItem("kd", "Kd", "getInt", "setInt", "&kdMilli", 0, 5000, 10, "slider", "A mutable fixed-point value row.", formatDec("formatMilli2", "&kdMilli")), assetId("slider")),
+      withIconAsset(intItem("loopRate", "Loop rate", "loopRateHz", 50, 400, 10, 200, "clock", "A standard integer row inside the PID submenu."), assetId("clock")),
+      withIconAsset(funcItem("saveTune", "Save tune", "action", "save", "A function row for persisting PID values."), assetId("save")),
+      withIconAsset(valueItem("pitch", "Pitch", "getInt", "", "&pitchTenth", 0, 0, 1, "level", "A read-only value formatted as signed tenths of a degree.", formatDec("formatPitch", "&pitchTenth")), assetId("level")),
+      withIconAsset(valueItem("heading", "Heading", "getInt", "", "&headingDeg", 0, 0, 1, "compass", "A read-only heading value.", formatDec("formatHeading", "&headingDeg")), assetId("compass")),
+      withIconAsset(valueItem("battery", "Battery", "getInt", "", "&battCentiV", 0, 0, 1, "battery", "A read-only centivolt value formatted as volts.", formatDec("formatVolts", "&battCentiV")), assetId("battery")),
+      withIconAsset(valueItem("range", "Range", "getInt", "", "&rangeMm", 0, 0, 1, "radar", "A read-only distance value.", formatDec("formatMm", "&rangeMm")), assetId("radar")),
+      withIconAsset(valueItem("cellTemp", "Cell temp", "getInt", "", "&cellTempC", 0, 0, 1, "thermo", "A read-only temperature value.", formatDec("formatTempC", "&cellTempC")), assetId("thermo")),
+      withIconAsset(intItem("brightness", "Brightness", "brightnessPct", 10, 100, 10, 80, "sun", "A display brightness integer row."), assetId("sun")),
+      withIconAsset(selectItem("theme", "Theme", "themeSel", [["Aurora", 0], ["Slate", 1], ["Mono", 2]], 0, "swatch", "A select row that also controls the hidden Dev tools row."), assetId("swatch")),
+      withIconAsset(boolItem("screenFlip", "Screen flip", "screenFlip", "Off", "On", false, "flip", "A boolean display orientation row."), assetId("flip")),
+      withIconAsset(funcItem("devTools", "Dev tools", "action", "tool", "A hidden row that appears only for the Mono theme.", hiddenDec("devToolsHidden", "0")), assetId("tool")),
+      withIconAsset(valueItem("firmware", "Firmware", "getInt", "", "&uptimeMin", 0, 0, 1, "chip", "A formatted read-only value.", formatDec("formatFirmware", "0")), assetId("chip")),
+      withIconAsset(valueItem("uptime", "Uptime", "getInt", "", "&uptimeMin", 0, 0, 1, "clock", "A formatted runtime value.", formatDec("formatUptime", "&uptimeMin")), assetId("clock"))
     ],
     snippets: {
       backing: defaultBackingSnippet(),
       callbacks: defaultCallbackSnippet()
     },
     icons: {},
-    content: {}
+    content: {},
+    assets,
+    statusWidgets: [
+      { id: "armed-status", type: "chip", label: "Armed state", sourceSymbol: "armed", falseLabel: "READY", trueLabel: "ARMED" },
+      { id: "battery-status", type: "battery", label: "Battery", sourceSymbol: "battCentiV", min: 900, max: 1260 }
+    ],
+    targetSettings: defaultTargetSettings("adafruit-ili9341-320x240-spi"),
+    previewSettings: {
+      skinId: "rover-console",
+      visibleRows: 5,
+      zoom: 1.25
+    }
   };
 }
 
@@ -220,6 +288,11 @@ function menuItem(id, label, childMenuId, icon, body, decorators = emptyDecorato
   };
 }
 
+function withIconAsset(item, iconAssetId) {
+  item.iconAssetId = iconAssetId || "";
+  return item;
+}
+
 function emptyDecorators() {
   return {
     format: { enabled: false, symbol: "", ctx: "0" },
@@ -230,19 +303,19 @@ function emptyDecorators() {
 }
 
 function formatDec(symbol, ctx) {
-  return mergeDecorators({ format: { enabled: true, symbol, ctx } });
+  return { format: { enabled: true, symbol, ctx } };
 }
 
 function disabledDec(symbol, ctx) {
-  return mergeDecorators({ disabled: { enabled: true, symbol, ctx } });
+  return { disabled: { enabled: true, symbol, ctx } };
 }
 
 function hiddenDec(symbol, ctx) {
-  return mergeDecorators({ hidden: { enabled: true, symbol, ctx } });
+  return { hidden: { enabled: true, symbol, ctx } };
 }
 
 function onChangeDec(symbol, ctx) {
-  return mergeDecorators({ onChange: { enabled: true, symbol, ctx } });
+  return { onChange: { enabled: true, symbol, ctx } };
 }
 
 function mergeDecorators(...partials) {
@@ -432,7 +505,7 @@ static void formatFirmware(void *, char *out, uint8_t cap) {
     }
     uint8_t pos = 0;
     out[0] = '\\0';
-    appendText(out, cap, pos, "v0.5.3");
+    appendText(out, cap, pos, "v0.5.4");
 }
 
 static void formatUptime(void *ctx, char *out, uint8_t cap) {
@@ -471,20 +544,75 @@ function normalizeModel(input) {
     items: Array.isArray(input?.items) ? input.items : base.items,
     snippets: { ...base.snippets, ...(input?.snippets || {}) },
     icons: input?.icons || {},
-    content: input?.content || {}
+    content: input?.content || {},
+    assets: Array.isArray(input?.assets) ? input.assets : base.assets,
+    statusWidgets: Array.isArray(input?.statusWidgets) ? input.statusWidgets : base.statusWidgets,
+    targetSettings: normalizeTargetSettings(input?.targetSettings || base.targetSettings),
+    previewSettings: {
+      ...base.previewSettings,
+      ...(input?.previewSettings || {})
+    }
   };
+  normalized.version = 2;
+  normalized.assets = normalized.assets.map(normalizeAsset);
   normalized.items = normalized.items.map((item) => ({
     ...item,
+    iconAssetId: item.iconAssetId || assetIdForIconKey(normalized.assets, item.icon || ""),
     decorators: mergeDecorators(item.decorators || {})
   }));
   if (!normalized.menus.some((menu) => menu.id === normalized.rootMenuId)) {
     normalized.rootMenuId = normalized.menus[0]?.id || "root";
   }
+  if (!normalized.previewSettings.skinId) {
+    normalized.previewSettings.skinId = normalized.targetSettings.skinId || targetProfileById(normalized.targetSettings.profileId).defaultSkinId;
+  }
+  normalized.previewSettings.visibleRows = clamp(numberOr(normalized.previewSettings.visibleRows, 5), 1, 8);
+  normalized.previewSettings.zoom = clamp(numberOr(normalized.previewSettings.zoom, 1), 0.75, 2);
   return normalized;
+}
+
+function normalizeAsset(asset) {
+  const key = asset?.key || asset?.safeName || "asset";
+  return {
+    id: asset?.id || `asset_${safeAssetName(key)}`,
+    key,
+    kind: asset?.kind || "svg",
+    source: asset?.source || "",
+    maskSource: asset?.maskSource || "",
+    width: numberOr(asset?.width, 24),
+    height: numberOr(asset?.height, 24),
+    safeName: asset?.safeName || safeAssetName(key),
+    usage: asset?.usage || "rowIcon",
+    settings: {
+      size: numberOr(asset?.settings?.size, 18),
+      threshold: numberOr(asset?.settings?.threshold, 1),
+      invertMask: Boolean(asset?.settings?.invertMask),
+      fit: asset?.settings?.fit || "contain",
+      colorDepth: asset?.settings?.colorDepth || "rgb565"
+    },
+    encoded: asset?.encoded || null
+  };
+}
+
+function assetIdForIconKey(assets, key) {
+  if (!key) return "";
+  return assets.find((asset) => asset.key === key || asset.safeName === key)?.id || "";
 }
 
 function saveModel() {
   localStorage.setItem(storageKey, JSON.stringify(model));
+}
+
+async function prepareModelAssets() {
+  const iconSize = Number(model.targetSettings?.assetExport?.iconSize || 18);
+  const pending = model.assets.filter((asset) => !asset.encoded && (asset.kind === "svg" || asset.kind === "raster" || asset.kind === "rasterMask"));
+  for (const asset of pending) {
+    try {
+      await encodeAssetForRgb565(asset, iconSize);
+    } catch (error) {
+      asset.encodeError = error.message || String(error);
+    }
+  }
 }
 
 function createPreviewState(sourceModel) {
@@ -501,10 +629,30 @@ function createPreviewState(sourceModel) {
   return {
     stack: [sourceModel.rootMenuId],
     selected: 0,
+    selectedByMenu: { [sourceModel.rootMenuId]: 0 },
     editingItemId: "",
+    editingOriginal: null,
     lastAction: "",
     values
   };
+}
+
+function currentPreviewMenuId() {
+  return preview.stack[preview.stack.length - 1] || model.rootMenuId;
+}
+
+function previewSelectedFor(menuId, rowCount) {
+  const selected = clamp(numberOr(preview.selectedByMenu?.[menuId], preview.selected), 0, Math.max(0, rowCount - 1));
+  preview.selectedByMenu ||= {};
+  preview.selectedByMenu[menuId] = selected;
+  preview.selected = selected;
+  return selected;
+}
+
+function setPreviewSelected(menuId, selected, rowCount) {
+  preview.selectedByMenu ||= {};
+  preview.selectedByMenu[menuId] = clamp(selected, 0, Math.max(0, rowCount - 1));
+  preview.selected = preview.selectedByMenu[menuId];
 }
 
 function initialFromKnownSymbol(symbol) {
@@ -549,6 +697,17 @@ function visibleItemsForMenu(menuId) {
   return menu.itemIds.map((id) => byId(model.items, id)).filter(Boolean).filter((item) => !isHidden(item));
 }
 
+function assetUsageCounts() {
+  const counts = {};
+  for (const item of model.items || []) {
+    if (item.iconAssetId) counts[item.iconAssetId] = (counts[item.iconAssetId] || 0) + 1;
+  }
+  for (const widget of model.statusWidgets || []) {
+    if (widget.assetId) counts[widget.assetId] = (counts[widget.assetId] || 0) + 1;
+  }
+  return counts;
+}
+
 function renderAll() {
   const rootMenu = byId(model.menus, model.rootMenuId);
   els.projectName.value = model.projectName || "";
@@ -560,6 +719,8 @@ function renderAll() {
   renderMenuSelect();
   renderItemList();
   renderItemEditor();
+  renderAssetManager();
+  renderTargetSettings();
   renderPreview();
   renderOutput();
   renderInstructions();
@@ -649,6 +810,7 @@ function renderItemEditor() {
         </select>
       </div>
       ${fieldHtml("icon", "Icon key", item.icon || "")}
+      ${assetSelectHtml(item)}
       ${fieldHtml("contentTitle", "Content title", item.contentTitle || "")}
     </div>
     <div class="field">
@@ -658,6 +820,90 @@ function renderItemEditor() {
     ${typeFieldsHtml(item)}
     <section class="decorator-grid" aria-label="Decorators">
       ${decoratorTypes.map(([key, macro, role]) => decoratorHtml(item, key, macro, role)).join("")}
+    </section>
+  `;
+}
+
+function assetSelectHtml(item) {
+  const options = [
+    `<option value="" ${item.iconAssetId ? "" : "selected"}>No asset</option>`,
+    ...model.assets.map((asset) => `<option value="${escapeAttr(asset.id)}" ${item.iconAssetId === asset.id ? "selected" : ""}>${escapeHtml(asset.key)}</option>`)
+  ];
+  return `<div class="field"><label for="iconAssetId">Icon asset</label><select id="iconAssetId" data-prop="iconAssetId">${options.join("")}</select></div>`;
+}
+
+function renderAssetManager() {
+  if (!els.assetList) return;
+  els.assetList.textContent = "";
+  if (!model.assets.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = "No assets yet. Add SVGs or images, or load the RoverConsole icon set.";
+    els.assetList.append(empty);
+    return;
+  }
+  const counts = assetUsageCounts();
+  for (const asset of model.assets) {
+    const row = document.createElement("article");
+    row.className = "asset-card";
+    const preview = document.createElement("span");
+    preview.className = "asset-preview";
+    const cssUrl = assetCssUrl(asset);
+    if (cssUrl) {
+      preview.style.setProperty("--asset-url", `url("${cssUrl.replace(/"/g, "%22")}")`);
+    }
+    const info = document.createElement("div");
+    info.innerHTML = `
+      <strong>${escapeHtml(asset.key)}</strong>
+      <span class="meta">${escapeHtml(asset.kind)} · ${numberOr(asset.encoded?.width, asset.width)}x${numberOr(asset.encoded?.height, asset.height)} · used ${counts[asset.id] || 0}x</span>
+      <span class="meta">${asset.encoded ? `${asset.encoded.flashBytes || 0} bytes estimated Adafruit asset data` : "encoding pending"}</span>
+    `;
+    const controls = document.createElement("div");
+    controls.className = "row-actions";
+    controls.innerHTML = `<button type="button" data-delete-asset="${escapeAttr(asset.id)}" aria-label="Delete asset">Delete</button>`;
+    row.append(preview, info, controls);
+    els.assetList.append(row);
+  }
+}
+
+function renderTargetSettings() {
+  if (!els.targetProfile) return;
+  const settings = model.targetSettings;
+  const profile = targetProfileById(settings.profileId);
+  if (!els.targetProfile.options.length) {
+    for (const optionProfile of TARGET_PROFILES) {
+      const option = document.createElement("option");
+      option.value = optionProfile.id;
+      option.textContent = optionProfile.label;
+      els.targetProfile.append(option);
+    }
+  }
+  if (!els.targetSkin.options.length) {
+    for (const skin of SKINS) {
+      const option = document.createElement("option");
+      option.value = skin.id;
+      option.textContent = skin.label;
+      els.targetSkin.append(option);
+    }
+  }
+  els.targetProfile.value = settings.profileId;
+  els.targetSkin.value = settings.skinId;
+  els.targetWidth.value = settings.width;
+  els.targetHeight.value = settings.height;
+  els.targetRotation.value = settings.rotation;
+  els.targetDisplayObject.value = settings.displayObject;
+  els.targetPinCs.value = settings.pins.cs;
+  els.targetPinDc.value = settings.pins.dc;
+  els.targetPinRst.value = settings.pins.rst;
+  els.targetInputAdapter.value = settings.inputAdapter;
+  els.targetNavigationWrap.checked = Boolean(settings.navigationWrap);
+  els.targetSummary.innerHTML = `
+    <section>
+      <h3>${escapeHtml(profile.label)}</h3>
+      <ul>
+        ${profileInstructions(profile).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+        <li>Navigation: ${settings.navigationWrap ? "wraps from either menu end to the other" : "stops at the first and last selectable rows"}.</li>
+      </ul>
     </section>
   `;
 }
@@ -741,31 +987,131 @@ function decoratorHtml(item, key, macro, role) {
 }
 
 function renderPreview() {
-  const menuId = preview.stack[preview.stack.length - 1] || model.rootMenuId;
-  const menu = byId(model.menus, menuId);
+  const menuId = currentPreviewMenuId();
   const rows = visibleItemsForMenu(menuId);
-  preview.selected = clamp(preview.selected, 0, Math.max(0, rows.length - 1));
+  const selected = previewSelectedFor(menuId, rows.length);
+  const profile = targetProfileById(model.targetSettings.profileId);
+  const graphicalPreview = Boolean(profile.capabilities.graphical);
+  const targetWidth = numberOr(model.targetSettings.width, 0);
+  const targetHeight = numberOr(model.targetSettings.height, 0);
+  const zoom = clamp(numberOr(model.previewSettings.zoom, 1), 0.75, 2);
   els.previewMenu.textContent = "";
+  els.previewMenu.classList.toggle("rover-skin", model.previewSettings.skinId === "rover-console" || model.targetSettings.skinId === "rover-console");
+  els.previewMenu.classList.toggle("graphical-viewport", graphicalPreview);
+  els.previewFrame.classList.toggle("graphical-frame", graphicalPreview);
+  if (graphicalPreview && targetWidth > 0 && targetHeight > 0) {
+    els.previewFrame.style.setProperty("--preview-width", `${targetWidth}px`);
+    els.previewFrame.style.setProperty("--preview-height", `${targetHeight}px`);
+    els.previewFrame.style.setProperty("--preview-zoom", String(zoom));
+    els.previewMenu.style.setProperty("--preview-width", `${targetWidth}px`);
+    els.previewMenu.style.setProperty("--preview-height", `${targetHeight}px`);
+    els.previewMenu.style.setProperty("--preview-aspect", `${targetWidth} / ${targetHeight}`);
+    els.previewMenu.style.setProperty("--preview-zoom", String(zoom));
+  } else {
+    els.previewFrame.style.removeProperty("--preview-width");
+    els.previewFrame.style.removeProperty("--preview-height");
+    els.previewFrame.style.removeProperty("--preview-zoom");
+    els.previewMenu.style.removeProperty("--preview-width");
+    els.previewMenu.style.removeProperty("--preview-height");
+    els.previewMenu.style.removeProperty("--preview-aspect");
+    els.previewMenu.style.removeProperty("--preview-zoom");
+  }
+  els.previewZoomLabel.textContent = `${Math.round(zoom * 100)}%`;
+  els.previewZoomOut.disabled = zoom <= 0.75;
+  els.previewZoomIn.disabled = zoom >= 2;
 
   const header = document.createElement("div");
   header.className = "preview-header";
-  header.innerHTML = `<strong>${escapeHtml(menuPathTitle())}</strong><span>${rows.length} rows</span>`;
+  header.innerHTML = `<span class="breadcrumb">${escapeHtml(menuPathTitle())}</span>${previewStatusHtml()}`;
   els.previewMenu.append(header);
 
-  rows.forEach((item, index) => {
+  const windowSize = Number(model.previewSettings.visibleRows || 5);
+  const top = previewTop(rows.length, selected, windowSize);
+  const visibleRows = rows.slice(top, top + windowSize);
+  visibleRows.forEach((item, offset) => {
+    const index = top + offset;
     const row = document.createElement("button");
     row.type = "button";
     row.className = `preview-row ${item.type}`;
     row.dataset.previewIndex = String(index);
-    if (index === preview.selected) row.classList.add("selected");
+    if (graphicalPreview) {
+      row.style.setProperty("--row-top", `${44 + offset * 36}px`);
+    }
+    if (index === selected) row.classList.add("selected");
     if (isDisabled(item)) row.classList.add("disabled");
     if (item.type === "bool" || item.type === "select") row.classList.add("choice");
     const value = previewValueText(item);
-    row.innerHTML = `<span><strong>${escapeHtml(item.label || "(untitled)")}</strong><span class="meta">${typeLabel(item.type)}${item.icon ? ` · ${escapeHtml(item.icon)}` : ""}</span></span><span class="value">${escapeHtml(value)}</span>`;
+    const meta = graphicalPreview ? "" : `<span class="meta">${typeLabel(item.type)}${assetLabel(item) ? ` · ${escapeHtml(assetLabel(item))}` : ""}</span>`;
+    row.innerHTML = `${previewIconHtml(item)}<span class="row-main"><strong>${escapeHtml(item.label || "(untitled)")}</strong>${meta}</span>${previewValueHtml(item, value)}`;
     els.previewMenu.append(row);
   });
+  if (rows.length > windowSize) {
+    const scrollbar = document.createElement("div");
+    const thumbHeight = Math.max(18, Math.round((windowSize / rows.length) * 100));
+    const denom = Math.max(1, rows.length - windowSize);
+    const thumbTop = Math.round(((100 - thumbHeight) * top) / denom);
+    scrollbar.className = "preview-scrollbar";
+    scrollbar.innerHTML = `<span style="height:${thumbHeight}%;top:${thumbTop}%"></span>`;
+    els.previewMenu.append(scrollbar);
+  }
 
-  renderPreviewDetails(rows[preview.selected]);
+  renderPreviewDetails(rows[selected]);
+}
+
+function previewTop(total, selected, windowSize) {
+  if (total <= windowSize) return 0;
+  return clamp(selected - Math.floor(windowSize / 2), 0, total - windowSize);
+}
+
+function previewStatusHtml() {
+  const armedWidget = model.statusWidgets.find((widget) => widget.type === "chip");
+  const batteryWidget = model.statusWidgets.find((widget) => widget.type === "battery");
+  const parts = [];
+  if (armedWidget) {
+    const armed = Boolean(preview.values[armedWidget.sourceSymbol]);
+    parts.push(`<span class="state-chip ${armed ? "armed" : "ready"}"><span aria-hidden="true"></span>${escapeHtml(armed ? armedWidget.trueLabel || "ARMED" : armedWidget.falseLabel || "READY")}</span>`);
+  }
+  if (batteryWidget) {
+    const pct = batteryPercent(preview.values[batteryWidget.sourceSymbol], batteryWidget);
+    const tone = pct > 50 ? "good" : (pct > 20 ? "warn" : "low");
+    parts.push(`<span class="battery-meter ${tone}" aria-label="Battery ${pct}%"><span class="battery-percent">${pct}%</span><span class="battery-case"><span class="battery-fill" style="width:${pct}%"></span></span></span>`);
+  }
+  if (!parts.length) {
+    parts.push(`<span class="meta">${visibleItemsForMenu(currentPreviewMenuId()).length} rows</span>`);
+  }
+  return `<span class="preview-status">${parts.join("")}</span>`;
+}
+
+function previewIconHtml(item) {
+  const asset = assetForItem(item);
+  if (!asset) return `<span class="preview-icon empty" aria-hidden="true"></span>`;
+  const cssUrl = assetCssUrl(asset);
+  return `<span class="preview-icon" style="--asset-url:url(&quot;${escapeAttr(cssUrl)}&quot;)" aria-hidden="true"></span>`;
+}
+
+function previewValueHtml(item, value) {
+  if (preview.editingItemId === item.id && value) {
+    return `<span class="edit-controls"><span class="edit-button minus" aria-hidden="true"></span><span class="edit-value">${escapeHtml(value)}</span><span class="edit-button plus" aria-hidden="true"></span></span>`;
+  }
+  if (item.type === "menu") {
+    return `<span class="value value-icon" aria-hidden="true">›</span>`;
+  }
+  return `<span class="value">${escapeHtml(value)}</span>`;
+}
+
+function assetForItem(item) {
+  return byId(model.assets, item.iconAssetId) || model.assets.find((asset) => asset.key === item.icon) || null;
+}
+
+function assetLabel(item) {
+  return assetForItem(item)?.key || item.icon || "";
+}
+
+function batteryPercent(value, widget) {
+  const min = numberOr(widget.min, 900);
+  const max = numberOr(widget.max, 1260);
+  const pct = Math.round(((numberOr(value, max) - min) / Math.max(1, max - min)) * 100);
+  return clamp(pct, 0, 100);
 }
 
 function renderPreviewDetails(item) {
@@ -787,6 +1133,7 @@ function renderOutput() {
 
 function renderInstructions() {
   const diagnostics = collectDiagnostics();
+  const profile = targetProfileById(model.targetSettings.profileId);
   els.instructions.innerHTML = `
     <section>
       <h3>Static hosting</h3>
@@ -794,6 +1141,12 @@ function renderInstructions() {
         <li>Place this folder under <code>docs/menu-builder/</code> and publish the repository with GitHub Pages from <code>docs/</code>.</li>
         <li>The app stores the working project in browser local storage and can export/import the JSON model.</li>
         <li>No backend, local-file access, or browser compiler is required. The app exports text assets for the user's normal development environment.</li>
+      </ol>
+    </section>
+    <section>
+      <h3>Selected target</h3>
+      <ol>
+        ${profileInstructions(profile).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
       </ol>
     </section>
     <section>
@@ -810,7 +1163,16 @@ function renderInstructions() {
         <li>Use the declaration-only output when the sketch already owns setup, loop, input, and display adapters.</li>
         <li>Use the Arduino Serial sketch output for a complete text-console starting point.</li>
         <li>Use the Desktop C++ stdio program for command-line testing without Arduino or browser dependencies.</li>
+        <li>Use the Adafruit ILI9341 sketch and generated asset header together for the first graphical Adafruit_GFX target.</li>
         <li>Move generated backing variables and callbacks into normal sketch files when replacing stubs with real application logic.</li>
+      </ol>
+    </section>
+    <section>
+      <h3>Assets</h3>
+      <ol>
+        <li>SVG assets are sanitized before preview or export.</li>
+        <li>Raster assets and optional masks are decoded in browser memory and exported without local filesystem paths.</li>
+        <li>Text targets report assigned icons as ignored; graphical targets export only used assets unless the profile says otherwise.</li>
       </ol>
     </section>
     <section>
@@ -833,12 +1195,17 @@ function generateOutputs() {
   const sketch = generateFirmwareSketch();
   const stdio = generateStdioProgram();
   const bridge = generateWasmBridgeCpp();
+  const adafruitAssets = generateAdafruitAssetHeader();
+  const adafruitSketch = generateAdafruitSketch();
   return {
     firmwareDeclaration: declaration,
     firmwareSketch: sketch,
     stdioProgram: stdio,
     wasmBridgeCpp: bridge,
     webPackageFiles: JSON.stringify(generateWebPackageFiles(bridge), null, 2),
+    adafruitSketch,
+    adafruitAssets,
+    targetPackageFiles: JSON.stringify(generateTargetPackageFiles({ bridge, adafruitSketch, adafruitAssets }), null, 2),
     diagnostics: collectDiagnostics().join("\n") || "No model diagnostics."
   };
 }
@@ -851,6 +1218,10 @@ ${generateSupportCode()}
 static const auto ${safeCppIdentifier(model.projectName || "menu", "Menu")} =
 ${menuExpression(model.rootMenuId, 0)};
 `;
+}
+
+function navigationSetupCode(runtimeName) {
+  return model.targetSettings.navigationWrap ? `\n    ${runtimeName}.set_navigation_wrap(true);` : "";
 }
 
 function generateFirmwareSketch() {
@@ -877,7 +1248,7 @@ void setup() {
     display_t display = make_print_display(serialDisplay, Serial, 32, 8);
     runtime = menu_runtime_t::make(${menuName}, display, input, false);
     runtime.set_show_title(true);
-    runtime.set_show_breadcrumbs(true);
+    runtime.set_show_breadcrumbs(true);${navigationSetupCode("runtime")}
     runtime.begin();
 }
 
@@ -941,7 +1312,7 @@ int main(void) {
 
     runtime = menu_runtime_t::make(${menuName}, display, input, false);
     runtime.set_show_title(true);
-    runtime.set_show_breadcrumbs(true);
+    runtime.set_show_breadcrumbs(true);${navigationSetupCode("runtime")}
     runtime.begin();
 
     while (running) {
@@ -1204,7 +1575,7 @@ extern "C" __attribute__((export_name("bm_init"))) void bm_init(void) {
     runtime = menu_runtime_t::make(${menuName}, webDisplay, webInput, false);
     runtime.set_show_title(true);
     runtime.set_show_breadcrumbs(true);
-    runtime.set_show_affordances(false);
+    runtime.set_show_affordances(false);${navigationSetupCode("runtime")}
     runtime.begin();
     runtime.service();
 }
@@ -1264,13 +1635,20 @@ extern "C" __attribute__((export_name("bm_visible_window"))) int bm_visible_wind
 }
 
 function generateWebPackageFiles(bridgeSource) {
+  const assetFiles = {};
+  for (const asset of usedAssets(model)) {
+    if (asset.kind === "svg") {
+      assetFiles[`icons/${asset.safeName}.svg`] = asset.source;
+    }
+  }
   return {
     files: {
       "bettermenu_wasm.cpp": bridgeSource,
       "BetterMenu.h": "Copy the current repository BetterMenu.h beside bettermenu_wasm.cpp before compiling.",
       "index.html": generatedWebIndex(),
       "demo.js": generatedWebDemoJs(),
-      "styles.css": generatedWebCss()
+      "styles.css": generatedWebCss(),
+      ...assetFiles
     },
     compile: {
       local: "Use a WebAssembly-capable C++ compiler in the project or development environment to emit a freestanding wasm32 module with exported bm_* functions."
@@ -1307,7 +1685,17 @@ function generatedWebIndex() {
 }
 
 function generatedWebDemoJs() {
+  const iconMap = Object.fromEntries(model.items.map((item) => {
+    const asset = assetForItem(item);
+    return [item.label, asset?.safeName || ""];
+  }).filter(([, key]) => key));
+  const contentMap = Object.fromEntries(model.items.map((item) => [
+    item.label,
+    [item.contentTitle || item.label, item.contentBody || "Generated from the structured BetterMenu model."]
+  ]));
   return `const menu = document.querySelector("#menu");
+const icons = ${JSON.stringify(iconMap, null, 2)};
+const content = ${JSON.stringify(contentMap, null, 2)};
 let wasm;
 let memory;
 
@@ -1318,13 +1706,39 @@ function readCString(ptr) {
   return new TextDecoder().decode(bytes.subarray(ptr, end));
 }
 
+function parseLine(text) {
+  const clean = text.replace(/^>\\s*/, "").replace(/\\s+\\(edit\\)$/, "").trim();
+  const parts = clean.split(": ");
+  return {
+    label: parts[0] || clean,
+    value: parts.length > 1 ? parts.slice(1).join(": ") : ""
+  };
+}
+
+function iconUrl(label) {
+  const key = icons[label];
+  return key ? \`url("./icons/\${key}.svg")\` : "";
+}
+
 function render() {
   menu.textContent = "";
   for (let i = 0; i < wasm.bm_row_count(); i += 1) {
     const row = document.createElement("button");
     row.type = "button";
-    row.textContent = readCString(wasm.bm_row_text_ptr(i));
+    row.className = "row";
+    const parsed = parseLine(readCString(wasm.bm_row_text_ptr(i)));
     if (wasm.bm_row_flags(i) & 1) row.classList.add("selected");
+    const icon = document.createElement("span");
+    icon.className = "icon";
+    const mask = iconUrl(parsed.label);
+    if (mask) icon.style.setProperty("--icon-url", mask);
+    const label = document.createElement("span");
+    label.className = "label";
+    label.textContent = parsed.label;
+    const value = document.createElement("span");
+    value.className = "value";
+    value.textContent = parsed.value;
+    row.append(icon, label, value);
     row.addEventListener("click", () => {
       wasm.bm_send_row(i, 1);
       render();
@@ -1380,8 +1794,47 @@ button {
   padding: 9px 10px;
 }
 
-.selected {
+.row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+
+.row.selected {
   border-color: #7fc7c0;
+  box-shadow: inset 4px 0 0 #7fc7c0;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: #96a6b6;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.icon::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  background: currentColor;
+  -webkit-mask: var(--icon-url, none) center / contain no-repeat;
+  mask: var(--icon-url, none) center / contain no-repeat;
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.value {
+  color: #7ed39f;
+  font-variant-numeric: tabular-nums;
 }
 
 .controls {
@@ -1392,9 +1845,405 @@ button {
 }`;
 }
 
+function generateAdafruitAssetHeader() {
+  const assets = usedAssets(model);
+  const declarations = [];
+  const structs = [];
+  for (const asset of assets) {
+    const symbol = assetSymbol(asset);
+    const encoded = asset.encoded;
+    if (!encoded?.rgb565?.length) continue;
+    declarations.push(`static const uint16_t ${symbol}_PIXELS[] PROGMEM = {\n${formatRgb565Array(encoded.rgb565)}\n};`);
+    if (encoded.mask?.length) {
+      declarations.push(`static const uint8_t ${symbol}_MASK[] PROGMEM = {\n${formatMaskArray(encoded.mask)}\n};`);
+    }
+    structs.push(`static const BMIconAsset ${symbol} = { ${encoded.width}, ${encoded.height}, ${symbol}_PIXELS, ${encoded.mask?.length ? `${symbol}_MASK` : "0"} };`);
+  }
+  return `#pragma once
+
+#include <Arduino.h>
+#include <Adafruit_GFX.h>
+
+struct BMIconAsset {
+    uint8_t width;
+    uint8_t height;
+    const uint16_t *pixels;
+    const uint8_t *mask;
+};
+
+${declarations.join("\n\n")}
+
+${structs.join("\n")}
+
+static bool bmIconMaskBit(const BMIconAsset *icon, uint16_t index) {
+    if (!icon || !icon->mask) {
+        return true;
+    }
+    uint8_t value = pgm_read_byte(&icon->mask[index / 8]);
+    return (value & (1 << (7 - (index % 8)))) != 0;
+}
+
+static void bmDrawIcon(Adafruit_GFX &gfx, int16_t x, int16_t y, const BMIconAsset *icon, uint16_t color, uint16_t fallback) {
+    if (!icon || !icon->pixels) {
+        gfx.drawCircle(x + 9, y + 9, 3, fallback);
+        return;
+    }
+    for (uint8_t py = 0; py < icon->height; ++py) {
+        for (uint8_t px = 0; px < icon->width; ++px) {
+            uint16_t index = static_cast<uint16_t>(py) * icon->width + px;
+            if (!bmIconMaskBit(icon, index)) {
+                continue;
+            }
+            uint16_t pixel = pgm_read_word(&icon->pixels[index]);
+            gfx.drawPixel(x + px, y + py, icon->mask ? color : pixel);
+        }
+    }
+}
+`;
+}
+
+function generateAdafruitSketch() {
+  const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
+  const settings = normalizeTargetSettings(model.targetSettings);
+  const profile = targetProfileById(settings.profileId);
+  return `#include <SPI.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ILI9341.h>
+#include <BetterMenu.h>
+
+#include "BetterMenuGeneratedAssets.h"
+
+#define ${settings.pins.cs} 10
+#define ${settings.pins.dc} 9
+#define ${settings.pins.rst} 8
+
+static Adafruit_ILI9341 ${settings.displayObject}(${settings.pins.cs}, ${settings.pins.dc}, ${settings.pins.rst});
+static menu_runtime_t menuRuntime;
+static serial_keys_ctx_t serialInput;
+
+${generateSupportCode()}
+
+static const auto ${menuName} =
+${menuExpression(model.rootMenuId, 0)};
+
+static uint16_t bmRgb(uint8_t r, uint8_t g, uint8_t b) {
+    return ${settings.displayObject}.color565(r, g, b);
+}
+
+static char bmLower(char c) {
+    return (c >= 'A' && c <= 'Z') ? static_cast<char>(c + ('a' - 'A')) : c;
+}
+
+static bool bmEq(const char *a, const char *b) {
+    if (!a || !b) {
+        return false;
+    }
+    while (*a && *b) {
+        if (bmLower(*a++) != bmLower(*b++)) {
+            return false;
+        }
+    }
+    return *a == '\\0' && *b == '\\0';
+}
+
+static void stripLabel(char *text) {
+    while (*text == '>' || *text == ' ') {
+        memmove(text, text + 1, strlen(text));
+    }
+    char *edit = strstr(text, "  (edit)");
+    if (edit) {
+        *edit = '\\0';
+    }
+}
+
+static char *splitValue(char *text) {
+    char *colon = strchr(text, ':');
+    if (!colon) {
+        return 0;
+    }
+    *colon = '\\0';
+    ++colon;
+    while (*colon == ' ') {
+        ++colon;
+    }
+    return colon;
+}
+
+${generateAdafruitIconLookup()}
+
+static int batteryPercent(void) {
+${generateAdafruitBatteryCode()}
+}
+
+static void drawHeader(const char *text, uint8_t flags) {
+    ${settings.displayObject}.fillRoundRect(8, 6, 304, 32, 8, bmRgb(23, 31, 43));
+    ${settings.displayObject}.drawRoundRect(8, 6, 304, 32, 8, bmRgb(46, 58, 74));
+    int16_t tx = 24;
+    if (flags & MENU_RENDER_BACK_AVAILABLE) {
+        ${settings.displayObject}.drawRoundRect(11, 12, 16, 20, 4, bmRgb(47, 211, 190));
+        ${settings.displayObject}.drawLine(22, 16, 17, 22, bmRgb(47, 211, 190));
+        ${settings.displayObject}.drawLine(17, 22, 22, 28, bmRgb(47, 211, 190));
+        tx = 36;
+    } else {
+        ${settings.displayObject}.fillRoundRect(11, 13, 5, 18, 2, bmRgb(47, 211, 190));
+    }
+    char title[MENU_MAX_LINE];
+    strncpy(title, text ? text : "", sizeof(title));
+    title[sizeof(title) - 1] = '\\0';
+    ${settings.displayObject}.setTextWrap(false);
+    ${settings.displayObject}.setTextSize(1);
+    ${settings.displayObject}.setTextColor(bmRgb(234, 240, 246), bmRgb(23, 31, 43));
+    ${settings.displayObject}.setCursor(tx, 15);
+    ${settings.displayObject}.print(title);
+
+    ${generateAdafruitHeaderStatusCode(settings.displayObject)}
+}
+
+static void drawScrollbar(menu_cursor_t const *cur, menu_render_line_t const *line) {
+    if (!cur || !line || line->row != 1) {
+        return;
+    }
+    uint8_t count = menu_runtime_t::menu_count(*cur);
+    int total = menu_runtime_t::visible_count(*cur, count);
+    if (total <= 5) {
+        return;
+    }
+    int top = menu_runtime_t::raw_to_visible(*cur, count, line->item_index);
+    int trackY = 44;
+    int trackH = 176;
+    int thumbH = trackH * 5 / total;
+    if (thumbH < 20) {
+        thumbH = 20;
+    }
+    int denom = total - 5;
+    if (denom < 1) {
+        denom = 1;
+    }
+    int thumbY = trackY + (trackH - thumbH) * top / denom;
+    ${settings.displayObject}.fillRoundRect(307, trackY, 4, trackH, 2, bmRgb(34, 43, 56));
+    ${settings.displayObject}.fillRoundRect(307, thumbY, 4, thumbH, 2, bmRgb(58, 150, 140));
+}
+
+static void adafruitClear(void *) {
+    ${settings.displayObject}.fillScreen(bmRgb(16, 21, 28));
+}
+
+static void adafruitFlush(void *) {
+}
+
+static void adafruitRenderLine(void *ctx, menu_render_line_t const *line) {
+    if (!line) {
+        return;
+    }
+    menu_runtime_t *runtime = static_cast<menu_runtime_t *>(ctx);
+    menu_cursor_t const *cur = (runtime && runtime->depth < MENU_MAX_STACK) ? &runtime->stack[runtime->depth] : 0;
+    if (line->kind == MENU_RENDER_TITLE) {
+        drawHeader(line->text, line->flags);
+        return;
+    }
+    if (line->kind != MENU_RENDER_ITEM) {
+        return;
+    }
+    drawScrollbar(cur, line);
+    uint8_t flags = line->flags;
+    bool selected = (flags & MENU_RENDER_SELECTED) != 0;
+    bool editing = (flags & MENU_RENDER_EDITING) != 0;
+    bool disabled = (flags & MENU_RENDER_DISABLED) != 0;
+    bool child = (flags & MENU_RENDER_HAS_CHILD) != 0;
+    bool editable = cur ? menu_runtime_t::menu_int_has(*cur, line->item_index) : false;
+    int16_t y = 44 + (line->row - 1) * 36;
+    int16_t cy = y + 16;
+    uint16_t cardBg = selected ? bmRgb(15, 45, 50) : bmRgb(20, 26, 35);
+    uint16_t border = selected ? bmRgb(47, 211, 190) : bmRgb(38, 48, 62);
+    ${settings.displayObject}.fillRoundRect(8, y, 294, 32, 7, cardBg);
+    ${settings.displayObject}.drawRoundRect(8, y, 294, 32, 7, border);
+    if (selected) {
+        ${settings.displayObject}.fillRoundRect(11, y + 4, 4, 24, 1, bmRgb(47, 211, 190));
+    }
+    char label[MENU_MAX_LINE];
+    strncpy(label, line->text ? line->text : "", sizeof(label));
+    label[sizeof(label) - 1] = '\\0';
+    stripLabel(label);
+    char *value = splitValue(label);
+    bool alert = bmEq(label, "E-STOP");
+    uint16_t iconColor = disabled ? bmRgb(74, 86, 98) : (alert ? bmRgb(240, 122, 110) : (selected ? bmRgb(47, 211, 190) : bmRgb(150, 166, 182)));
+    bmDrawIcon(${settings.displayObject}, 17, y + 7, bmIconForLabel(label), iconColor, iconColor);
+    ${settings.displayObject}.setTextSize(1);
+    ${settings.displayObject}.setTextColor(disabled ? bmRgb(74, 86, 98) : (alert ? bmRgb(240, 122, 110) : bmRgb(234, 240, 246)), cardBg);
+    ${settings.displayObject}.setCursor(52, y + 12);
+    ${settings.displayObject}.print(label);
+    if (editing && value) {
+        ${settings.displayObject}.drawRoundRect(196, y + 7, 18, 18, 4, bmRgb(47, 211, 190));
+        ${settings.displayObject}.drawLine(201, cy, 209, cy, bmRgb(47, 211, 190));
+        ${settings.displayObject}.setTextColor(bmRgb(95, 224, 196), cardBg);
+        ${settings.displayObject}.setCursor(226, y + 12);
+        ${settings.displayObject}.print(value);
+        ${settings.displayObject}.drawRoundRect(284, y + 7, 18, 18, 4, bmRgb(47, 211, 190));
+        ${settings.displayObject}.drawLine(289, cy, 297, cy, bmRgb(47, 211, 190));
+        ${settings.displayObject}.drawLine(293, cy - 4, 293, cy + 4, bmRgb(47, 211, 190));
+    } else if (child) {
+        ${settings.displayObject}.drawLine(292, y + 11, 297, y + 16, bmRgb(126, 138, 153));
+        ${settings.displayObject}.drawLine(297, y + 16, 292, y + 21, bmRgb(126, 138, 153));
+    } else if (value) {
+        uint16_t valueColor = disabled ? bmRgb(54, 63, 74) : ((line->entry_type == ENTRY_BOOL || line->entry_type == ENTRY_SELECT) ? bmRgb(232, 197, 122) : (editable ? bmRgb(95, 224, 196) : bmRgb(111, 182, 232)));
+        ${settings.displayObject}.setTextColor(valueColor, cardBg);
+        int16_t x = 294 - static_cast<int16_t>(strlen(value)) * 6;
+        if (x < 190) {
+            x = 190;
+        }
+        ${settings.displayObject}.setCursor(x, y + 12);
+        ${settings.displayObject}.print(value);
+    }
+}
+
+static display_ops_t const ADAFRUIT_DISPLAY_OPS = {
+    &adafruitClear,
+    0,
+    &adafruitFlush,
+    &adafruitRenderLine
+};
+
+void setup() {
+    Serial.begin(115200);
+    while (!Serial) {
+    }
+    ${settings.displayObject}.begin();
+    ${settings.displayObject}.setRotation(${settings.rotation});
+    ${settings.displayObject}.setTextWrap(false);
+
+    input_source_t input = make_serial_keys_input(serialInput);
+    display_t display = make_display(60, 6, &menuRuntime, &ADAFRUIT_DISPLAY_OPS);
+    menuRuntime = menu_runtime_t::make(${menuName}, display, input, false);
+    menuRuntime.set_show_title(true);
+    menuRuntime.set_show_breadcrumbs(true);
+    menuRuntime.set_show_affordances(false);${navigationSetupCode("menuRuntime")}
+    menuRuntime.begin();
+}
+
+void loop() {
+    menuRuntime.service();
+}
+
+// Profile: ${profile.label}
+// Default pin constants are placeholders. Replace them with the board wiring before compiling.
+`;
+}
+
+function generateTargetPackageFiles(files) {
+  const profile = targetProfileById(model.targetSettings.profileId);
+  return {
+    profile: profile.id,
+    profileLabel: profile.label,
+    files: {
+      "BetterMenuDeclaration.h": generateFirmwareDeclaration(),
+      "BetterMenuSerialDemo.ino": generateFirmwareSketch(),
+      "BetterMenuStdioDemo.cpp": generateStdioProgram(),
+      "bettermenu_wasm.cpp": files.bridge,
+      "web-package-manifest.json": generateWebPackageFiles(files.bridge),
+      "BetterMenuAdafruitILI9341.ino": files.adafruitSketch,
+      "BetterMenuGeneratedAssets.h": files.adafruitAssets
+    },
+    instructions: profileInstructions(profile)
+  };
+}
+
+function generateAdafruitIconLookup() {
+  const lines = [];
+  const seen = new Set();
+  for (const item of model.items) {
+    const asset = assetForItem(item);
+    if (!asset?.encoded || seen.has(`${item.label}:${asset.id}`)) continue;
+    seen.add(`${item.label}:${asset.id}`);
+    lines.push(`    if (bmEq(label, ${cppString(item.label)})) { return &${assetSymbol(asset)}; }`);
+  }
+  return `static const BMIconAsset *bmIconForLabel(const char *label) {
+${lines.join("\n") || "    (void)label;"}
+    return 0;
+}`;
+}
+
+function generateAdafruitBatteryCode() {
+  const widget = model.statusWidgets.find((entry) => entry.type === "battery");
+  if (!widget?.sourceSymbol) {
+    return "    return 100;";
+  }
+  return `    long raw = ${widget.sourceSymbol};
+    long minValue = ${numberOr(widget.min, 900)};
+    long maxValue = ${numberOr(widget.max, 1260)};
+    long pct = (raw - minValue) * 100L / (maxValue - minValue);
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    return static_cast<int>(pct);`;
+}
+
+function generateAdafruitHeaderStatusCode(displayObject) {
+  const chip = model.statusWidgets.find((entry) => entry.type === "chip");
+  const battery = model.statusWidgets.find((entry) => entry.type === "battery");
+  const lines = [];
+  if (battery) {
+    lines.push(`    int pct = batteryPercent();
+    uint16_t batteryColor = pct > 50 ? bmRgb(86, 216, 168) : (pct > 20 ? bmRgb(232, 182, 92) : bmRgb(240, 122, 110));
+    ${displayObject}.drawRoundRect(282, 16, 22, 12, 2, bmRgb(126, 138, 153));
+    ${displayObject}.fillRect(305, 19, 2, 6, bmRgb(126, 138, 153));
+    ${displayObject}.fillRect(284, 18, (18 * pct) / 100, 8, batteryColor);
+    char pctText[8];
+    snprintf(pctText, sizeof(pctText), "%d%%", pct);
+    ${displayObject}.setTextSize(1);
+    ${displayObject}.setTextColor(bmRgb(126, 138, 153), bmRgb(23, 31, 43));
+    ${displayObject}.setCursor(252, 18);
+    ${displayObject}.print(pctText);`);
+  }
+  if (chip?.sourceSymbol) {
+    lines.push(`    const bool chipOn = ${chip.sourceSymbol};
+    const char *chipText = chipOn ? ${cppString(chip.trueLabel || "ARMED")} : ${cppString(chip.falseLabel || "READY")};
+    uint16_t chipColor = chipOn ? bmRgb(232, 182, 92) : bmRgb(86, 216, 168);
+    uint16_t chipBg = chipOn ? bmRgb(58, 42, 18) : bmRgb(18, 52, 43);
+    ${displayObject}.fillRoundRect(200, 15, 42, 14, 7, chipBg);
+    ${displayObject}.fillCircle(208, 22, 2, chipColor);
+    ${displayObject}.setTextColor(chipColor, chipBg);
+    ${displayObject}.setCursor(213, 18);
+    ${displayObject}.print(chipText);`);
+  }
+  return lines.join("\n");
+}
+
+function assetSymbol(asset) {
+  return `BM_ICON_${safeCppIdentifier(asset.safeName || asset.key || "asset").toUpperCase()}`;
+}
+
 function collectDiagnostics() {
   const diagnostics = [];
   const supportSource = `${model.snippets.backing || ""}\n${model.snippets.callbacks || ""}`;
+  const profile = targetProfileById(model.targetSettings.profileId);
+  const assetKeys = new Set();
+  const usedAssetList = usedAssets(model);
+  if (model.version !== 2) diagnostics.push("Project model will be migrated to version 2 on save.");
+  if (!profile.capabilities.graphical && usedAssetList.length) {
+    diagnostics.push(`${profile.label} is a text target; assigned icons and graphical assets are ignored for this output.`);
+  }
+  for (const asset of model.assets || []) {
+    if (!asset.key?.trim()) diagnostics.push(`Asset ${asset.id} needs a key.`);
+    if (assetKeys.has(asset.key)) diagnostics.push(`Asset key ${asset.key} is duplicated.`);
+    assetKeys.add(asset.key);
+    if (!asset.source) diagnostics.push(`Asset ${asset.key || asset.id} has no source data.`);
+    if (asset.kind === "svg") {
+      try {
+        sanitizeSvgSource(asset.source);
+      } catch (error) {
+        diagnostics.push(`Asset ${asset.key || asset.id} is not export-safe: ${error.message || String(error)}.`);
+      }
+    }
+    if (profile.id === "adafruit-ili9341-320x240-spi" && usedAssetList.includes(asset) && !asset.encoded?.rgb565?.length) {
+      diagnostics.push(`Asset ${asset.key || asset.id} is used by the Adafruit target but has not been RGB565 encoded yet.`);
+    }
+  }
+  if (profile.capabilities.statusWidgets === false && model.statusWidgets.length) {
+    diagnostics.push(`${profile.label} does not render graphical status widgets.`);
+  }
+  if (profile.id === "adafruit-ili9341-320x240-spi") {
+    if (!model.targetSettings.width || !model.targetSettings.height) diagnostics.push("Adafruit ILI9341 target needs non-zero width and height.");
+    if (!model.targetSettings.displayObject?.trim()) diagnostics.push("Adafruit ILI9341 target needs a display object name.");
+  }
   const requireCppSymbol = (item, symbol, role) => {
     if (!symbol?.trim()) return;
     if (!isCppIdentifier(symbol)) {
@@ -1438,6 +2287,7 @@ function collectDiagnostics() {
       requireCppSymbol(item, item.actionSymbol, "callback");
     }
     if (item.type === "menu" && !byId(model.menus, item.childMenuId)) diagnostics.push(`${item.label || item.id} needs an existing child menu.`);
+    if (item.iconAssetId && !byId(model.assets, item.iconAssetId)) diagnostics.push(`${item.label || item.id} references a missing icon asset.`);
     for (const [key] of decoratorTypes) {
       const dec = item.decorators?.[key];
       if (dec?.enabled && !dec.symbol?.trim()) diagnostics.push(`${item.label || item.id} enables ${key} without a symbol.`);
@@ -1457,7 +2307,6 @@ function collectDiagnostics() {
 
 function previewValueText(item) {
   if (!item) return "";
-  if (isDisabled(item)) return "disabled";
   const editing = preview.editingItemId === item.id;
   if (item.type === "menu") return ">";
   if (item.type === "func") return preview.lastAction === item.label ? "called" : "";
@@ -1482,58 +2331,93 @@ function formatPreviewValue(item, value) {
   if (symbol === "formatMm") return `${value} mm`;
   if (symbol === "formatTempC") return `${value} C`;
   if (symbol === "formatHz") return `${value} Hz`;
-  if (symbol === "formatFirmware") return "v0.5.3";
+  if (symbol === "formatFirmware") return "v0.5.4";
   if (symbol === "formatUptime") return `${Math.floor(value / 60)}h ${String(value % 60).padStart(2, "0")}m`;
   return String(value);
 }
 
 function previewChoice(choice) {
-  const rows = visibleItemsForMenu(preview.stack[preview.stack.length - 1]);
+  const menuId = currentPreviewMenuId();
+  const rows = visibleItemsForMenu(menuId);
   if (!rows.length) return;
-  const item = rows[preview.selected];
+  const selected = previewSelectedFor(menuId, rows.length);
+  const item = rows[selected];
+  if (preview.editingItemId) {
+    if (choice === Choice.Up || choice === Choice.Right) {
+      if (item) adjustPreviewValue(item, 1);
+    } else if (choice === Choice.Down || choice === Choice.Left) {
+      if (item) adjustPreviewValue(item, -1);
+    } else if (choice === Choice.Select) {
+      commitPreviewEdit();
+    } else if (choice === Choice.Cancel) {
+      cancelPreviewEdit();
+    }
+    renderPreview();
+    return;
+  }
   if (choice === Choice.Up) {
-    preview.selected = (preview.selected + rows.length - 1) % rows.length;
-    preview.editingItemId = "";
+    const next = model.targetSettings.navigationWrap ? (selected + rows.length - 1) % rows.length : Math.max(0, selected - 1);
+    setPreviewSelected(menuId, next, rows.length);
   } else if (choice === Choice.Down) {
-    preview.selected = (preview.selected + 1) % rows.length;
-    preview.editingItemId = "";
+    const next = model.targetSettings.navigationWrap ? (selected + 1) % rows.length : Math.min(rows.length - 1, selected + 1);
+    setPreviewSelected(menuId, next, rows.length);
   } else if (choice === Choice.Cancel) {
-    if (preview.editingItemId) preview.editingItemId = "";
-    else if (preview.stack.length > 1) preview.stack.pop();
-    preview.selected = 0;
+    if (preview.stack.length > 1) preview.stack.pop();
   } else if (choice === Choice.Left) {
-    if (preview.editingItemId && item) adjustPreviewValue(item, -1);
-    else if (preview.stack.length > 1) preview.stack.pop();
+    if (preview.stack.length > 1) preview.stack.pop();
   } else if (choice === Choice.Right) {
-    if (item) activatePreviewItem(item, true);
+    if (item) activatePreviewItem(item);
   } else if (choice === Choice.Select) {
-    if (item) activatePreviewItem(item, false);
+    if (item) activatePreviewItem(item);
   }
   renderPreview();
 }
 
-function activatePreviewItem(item, rightPressed) {
+function activatePreviewItem(item) {
   if (isDisabled(item)) return;
   if (item.type === "menu" && item.childMenuId) {
     preview.stack.push(item.childMenuId);
-    preview.selected = 0;
-    preview.editingItemId = "";
+    setPreviewSelected(item.childMenuId, preview.selectedByMenu?.[item.childMenuId] ?? 0, visibleItemsForMenu(item.childMenuId).length);
   } else if (item.type === "bool") {
     preview.values[item.stateSymbol] = !preview.values[item.stateSymbol];
     preview.lastAction = `${item.label} changed`;
   } else if (item.type === "select") {
     cyclePreviewSelect(item);
     preview.lastAction = `${item.label} changed`;
-  } else if (item.type === "int" || item.type === "value") {
-    if (preview.editingItemId === item.id || rightPressed) {
-      preview.editingItemId = item.id;
-      adjustPreviewValue(item, 1);
-    } else {
-      preview.editingItemId = item.id;
-    }
+  } else if (item.type === "int" || (item.type === "value" && item.setter)) {
+    beginPreviewEdit(item);
+  } else if (item.type === "value") {
+    clearPreviewEdit();
   } else if (item.type === "func") {
     preview.lastAction = item.label || "Function called";
   }
+}
+
+function beginPreviewEdit(item) {
+  const key = previewValueKey(item);
+  if (!key) return;
+  const min = numberOr(item.min, -2147483648);
+  const max = numberOr(item.max, 2147483647);
+  const current = clamp(numberOr(preview.values[key], 0), Math.min(min, max), Math.max(min, max));
+  preview.values[key] = current;
+  preview.editingItemId = item.id;
+  preview.editingOriginal = { key, value: current };
+}
+
+function commitPreviewEdit() {
+  clearPreviewEdit();
+}
+
+function cancelPreviewEdit() {
+  if (preview.editingOriginal?.key) {
+    preview.values[preview.editingOriginal.key] = preview.editingOriginal.value;
+  }
+  clearPreviewEdit();
+}
+
+function clearPreviewEdit() {
+  preview.editingItemId = "";
+  preview.editingOriginal = null;
 }
 
 function cyclePreviewSelect(item) {
@@ -1545,7 +2429,7 @@ function cyclePreviewSelect(item) {
 }
 
 function adjustPreviewValue(item, direction) {
-  const key = item.type === "value" ? symbolFromCtx(item.ctx) : item.stateSymbol;
+  const key = previewValueKey(item);
   if (!key) return;
   const step = numberOr(item.step, 1);
   const min = numberOr(item.min, -2147483648);
@@ -1553,6 +2437,10 @@ function adjustPreviewValue(item, direction) {
   const next = clamp(numberOr(preview.values[key], 0) + direction * step, min, max);
   preview.values[key] = next;
   preview.lastAction = `${item.label} changed`;
+}
+
+function previewValueKey(item) {
+  return item?.type === "value" ? symbolFromCtx(item.ctx) : item?.stateSymbol;
 }
 
 function isHidden(item) {
@@ -1666,6 +2554,9 @@ function outputFilename() {
     stdioProgram: "BetterMenuStdioDemo.cpp",
     wasmBridgeCpp: "bettermenu_wasm.cpp",
     webPackageFiles: "web-package-manifest.json",
+    adafruitSketch: "BetterMenuAdafruitILI9341.ino",
+    adafruitAssets: "BetterMenuGeneratedAssets.h",
+    targetPackageFiles: "target-package-manifest.json",
     diagnostics: "diagnostics.txt"
   };
   return map[els.outputSelect.value] || "bettermenu-output.txt";
@@ -1687,6 +2578,10 @@ function updateSelectedItem(prop, value) {
     item.initial = Boolean(value);
   } else if (["min", "max", "step", "initial"].includes(prop)) {
     item[prop] = numberOr(value, item[prop] || 0);
+  } else if (prop === "iconAssetId") {
+    item.iconAssetId = value;
+    const asset = byId(model.assets, value);
+    if (asset) item.icon = asset.key;
   } else if (prop === "childTitle") {
     const child = byId(model.menus, item.childMenuId);
     if (child) child.title = value;
@@ -1766,6 +2661,106 @@ function moveItem(itemId, direction) {
   renderAll();
 }
 
+async function addSvgAssetFromSource(source, keyValue) {
+  const key = keyValue || els.assetKey.value || `icon_${model.assets.length + 1}`;
+  const asset = makeSvgAsset(key, sanitizeSvgSource(source).source, "rowIcon");
+  asset.id = uniqueAssetId(asset.id);
+  asset.settings.size = numberOr(els.assetSize.value, 18);
+  await encodeAssetForRgb565(asset, asset.settings.size);
+  model.assets.push(asset);
+  els.assetSvgSource.value = "";
+  els.assetKey.value = "";
+  renderAll();
+}
+
+async function addRasterAssetFromFiles() {
+  const [imageFile] = els.assetRasterFile.files || [];
+  if (!imageFile) return;
+  const [maskFile] = els.assetMaskFile.files || [];
+  const key = els.assetKey.value || imageFile.name.replace(/\.[^.]+$/, "") || `image_${model.assets.length + 1}`;
+  const source = await fileToDataUrl(imageFile);
+  const maskSource = maskFile ? await fileToDataUrl(maskFile) : "";
+  const asset = {
+    id: uniqueAssetId(`asset_${safeAssetName(key)}`),
+    key,
+    kind: maskSource ? "rasterMask" : "raster",
+    source,
+    maskSource,
+    width: 0,
+    height: 0,
+    safeName: safeAssetName(key),
+    usage: "rowIcon",
+    settings: {
+      size: numberOr(els.assetSize.value, 18),
+      threshold: 1,
+      invertMask: false,
+      fit: "contain",
+      colorDepth: "rgb565"
+    },
+    encoded: null
+  };
+  await encodeAssetForRgb565(asset, asset.settings.size);
+  model.assets.push(asset);
+  els.assetRasterFile.value = "";
+  els.assetMaskFile.value = "";
+  els.assetKey.value = "";
+  renderAll();
+}
+
+async function loadRoverAssets() {
+  const existing = new Set(model.assets.map((asset) => asset.key));
+  const additions = defaultRoverAssets().filter((asset) => !existing.has(asset.key));
+  for (const asset of additions) {
+    asset.id = uniqueAssetId(asset.id);
+    await encodeAssetForRgb565(asset, asset.settings.size);
+    model.assets.push(asset);
+  }
+  for (const item of model.items) {
+    if (!item.iconAssetId && item.icon) {
+      item.iconAssetId = assetIdForIconKey(model.assets, item.icon);
+    }
+  }
+  renderAll();
+}
+
+function deleteAsset(assetId) {
+  model.assets = model.assets.filter((asset) => asset.id !== assetId);
+  for (const item of model.items) {
+    if (item.iconAssetId === assetId) item.iconAssetId = "";
+  }
+  model.statusWidgets.forEach((widget) => {
+    if (widget.assetId === assetId) widget.assetId = "";
+  });
+  renderAll();
+}
+
+function uniqueAssetId(baseId) {
+  let id = baseId || `asset_${Date.now().toString(36)}`;
+  let suffix = 2;
+  while (byId(model.assets, id)) {
+    id = `${baseId}_${suffix++}`;
+  }
+  return id;
+}
+
+function updateTargetSetting(prop, value) {
+  if (["width", "height", "rotation"].includes(prop)) {
+    model.targetSettings[prop] = numberOr(value, 0);
+  } else {
+    model.targetSettings[prop] = value;
+  }
+  model.targetSettings = normalizeTargetSettings(model.targetSettings);
+  model.previewSettings.skinId = model.targetSettings.skinId;
+  renderAll();
+}
+
+function adjustPreviewZoom(direction) {
+  const current = clamp(numberOr(model.previewSettings.zoom, 1), 0.75, 2);
+  model.previewSettings.zoom = clamp(Math.round((current + direction * 0.25) * 100) / 100, 0.75, 2);
+  renderPreview();
+  saveModel();
+}
+
 function newId(prefix) {
   idCounter += 1;
   return `${prefix}_${Date.now().toString(36)}_${idCounter.toString(36)}`;
@@ -1812,6 +2807,48 @@ function installEventHandlers() {
   els.itemEditor.addEventListener("change", handleEditorInput);
   els.addItem.addEventListener("click", addItem);
   els.deleteItem.addEventListener("click", deleteSelectedItem);
+  els.assetList.addEventListener("click", (event) => {
+    const deleteButton = event.target.closest("[data-delete-asset]");
+    if (deleteButton) deleteAsset(deleteButton.dataset.deleteAsset);
+  });
+  els.addSvgAsset.addEventListener("click", () => {
+    addSvgAssetFromSource(els.assetSvgSource.value).catch(showAssetError);
+  });
+  els.assetSvgFile.addEventListener("change", async () => {
+    const [file] = els.assetSvgFile.files || [];
+    if (!file) return;
+    try {
+      await addSvgAssetFromSource(await file.text(), els.assetKey.value || file.name.replace(/\.[^.]+$/, ""));
+    } catch (error) {
+      showAssetError(error);
+    } finally {
+      els.assetSvgFile.value = "";
+    }
+  });
+  els.addRasterAsset.addEventListener("click", () => {
+    addRasterAssetFromFiles().catch(showAssetError);
+  });
+  els.loadRoverAssets.addEventListener("click", () => {
+    loadRoverAssets().catch(showAssetError);
+  });
+  els.targetProfile.addEventListener("change", () => {
+    model.targetSettings = defaultTargetSettings(els.targetProfile.value);
+    model.previewSettings.skinId = model.targetSettings.skinId;
+    renderAll();
+  });
+  els.targetSkin.addEventListener("change", () => updateTargetSetting("skinId", els.targetSkin.value));
+  document.querySelectorAll("[data-target-prop]").forEach((field) => {
+    const readValue = () => field.type === "checkbox" ? field.checked : field.value;
+    field.addEventListener("input", () => updateTargetSetting(field.dataset.targetProp, readValue()));
+    field.addEventListener("change", () => updateTargetSetting(field.dataset.targetProp, readValue()));
+  });
+  document.querySelectorAll("[data-target-pin]").forEach((field) => {
+    field.addEventListener("input", () => {
+      model.targetSettings.pins[field.dataset.targetPin] = field.value;
+      model.targetSettings = normalizeTargetSettings(model.targetSettings);
+      renderAll();
+    });
+  });
   els.generateStubs.addEventListener("change", () => {
     model.generateStubs = els.generateStubs.checked;
     renderOutput();
@@ -1832,10 +2869,12 @@ function installEventHandlers() {
       previewChoice(Number(button.dataset.choice));
     });
   });
+  els.previewZoomOut.addEventListener("click", () => adjustPreviewZoom(-1));
+  els.previewZoomIn.addEventListener("click", () => adjustPreviewZoom(1));
   els.previewMenu.addEventListener("click", (event) => {
     const row = event.target.closest("[data-preview-index]");
     if (!row) return;
-    preview.selected = Number(row.dataset.previewIndex);
+    setPreviewSelected(currentPreviewMenuId(), Number(row.dataset.previewIndex), visibleItemsForMenu(currentPreviewMenuId()).length);
     previewChoice(Choice.Select);
   });
   els.outputSelect.addEventListener("change", renderOutput);
@@ -1849,8 +2888,9 @@ function installEventHandlers() {
     downloadText(`${safeCppIdentifier(model.projectName || "bettermenu", "Project")}.json`, JSON.stringify(model, null, 2));
   });
   els.loadJson.addEventListener("change", importJson);
-  els.loadSample.addEventListener("click", () => {
+  els.loadSample.addEventListener("click", async () => {
     model = roverConsoleModel();
+    await prepareModelAssets();
     selectedMenuId = model.rootMenuId;
     selectedItemId = byId(model.menus, selectedMenuId)?.itemIds[0] || "";
     preview = createPreviewState(model);
@@ -1878,6 +2918,11 @@ function installEventHandlers() {
       previewChoice(keymap[event.key]);
     }
   });
+}
+
+function showAssetError(error) {
+  const message = error?.message || String(error);
+  els.assetSvgSource.value = `Asset import failed: ${message}`;
 }
 
 function handleEditorInput(event) {
@@ -1921,6 +2966,7 @@ async function importJson(event) {
   if (!file) return;
   try {
     model = normalizeModel(JSON.parse(await file.text()));
+    await prepareModelAssets();
     selectedMenuId = model.rootMenuId;
     selectedItemId = byId(model.menus, selectedMenuId)?.itemIds[0] || "";
     preview = createPreviewState(model);
@@ -1930,7 +2976,14 @@ async function importJson(event) {
   }
 }
 
-installEventHandlers();
-selectedMenuId = byId(model.menus, selectedMenuId)?.id || model.rootMenuId;
-selectedItemId = byId(model.menus, selectedMenuId)?.itemIds[0] || "";
-renderAll();
+async function initApp() {
+  await prepareModelAssets();
+  installEventHandlers();
+  selectedMenuId = byId(model.menus, selectedMenuId)?.id || model.rootMenuId;
+  selectedItemId = byId(model.menus, selectedMenuId)?.itemIds[0] || "";
+  renderAll();
+}
+
+initApp().catch((error) => {
+  document.body.textContent = error.message || String(error);
+});

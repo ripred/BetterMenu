@@ -237,7 +237,7 @@ static void formatFirmware(void *, char *out, uint8_t cap) {
     }
     uint8_t pos = 0;
     out[0] = '\0';
-    appendText(out, cap, pos, "v0.5.3");
+    appendText(out, cap, pos, "v0.5.4");
 }
 
 static void formatUptime(void *ctx, char *out, uint8_t cap) {

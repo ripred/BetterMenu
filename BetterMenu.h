@@ -91,8 +91,8 @@ static inline char menu_text_char_at(menu_text_t text, uint8_t idx) {
 
 #define BETTER_MENU_VERSION_MAJOR 0
 #define BETTER_MENU_VERSION_MINOR 5
-#define BETTER_MENU_VERSION_PATCH 3
-#define BETTER_MENU_VERSION "0.5.3"
+#define BETTER_MENU_VERSION_PATCH 4
+#define BETTER_MENU_VERSION "0.5.4"
 
 /* =============================== Input API =============================== */
 /* Ways to feed input (all non-blocking):
@@ -120,6 +120,11 @@ enum menu_event_flags_t {
     MENU_EVENT_ACTIVATE = 1 << 0,
     MENU_EVENT_LONG     = 1 << 1,
     MENU_EVENT_REPEAT   = 1 << 2
+};
+
+enum menu_navigation_mode_t {
+    MENU_NAV_CLAMP = 0,
+    MENU_NAV_WRAP  = 1
 };
 
 struct menu_event_t {
@@ -1101,7 +1106,8 @@ struct menu_runtime_t {
 	                      dirty       : 1,
 	                      has_src     : 1,
 	                      show_breadcrumbs : 1,
-	                      show_affordances : 1;
+	                      show_affordances : 1,
+                          navigation_wrap  : 1;
 
     menu_cursor_t     stack[MENU_MAX_STACK];
     uint8_t           depth;
@@ -1120,6 +1126,7 @@ struct menu_runtime_t {
         has_src(0),
         show_breadcrumbs(0),
         show_affordances(0),
+        navigation_wrap(0),
         stack(),
         depth(0),
         edit_original(0),
@@ -1177,6 +1184,7 @@ struct menu_runtime_t {
 	    r.has_src      = 0;
 	    r.show_breadcrumbs = 0;
 	    r.show_affordances = 0;
+        r.navigation_wrap = 0;
 	    r.depth        = 0;
 	    r.edit_original= 0;
 	    r.persistence  = menu_persistence_t();
@@ -1196,6 +1204,8 @@ struct menu_runtime_t {
     inline void set_show_title(bool enable) { show_title = enable ? 1 : 0; dirty = 1; }
     inline void set_show_breadcrumbs(bool enable) { show_breadcrumbs = enable ? 1 : 0; dirty = 1; }
     inline void set_show_affordances(bool enable) { show_affordances = enable ? 1 : 0; dirty = 1; }
+    inline void set_navigation_mode(menu_navigation_mode_t mode) { navigation_wrap = (mode == MENU_NAV_WRAP) ? 1 : 0; }
+    inline void set_navigation_wrap(bool enable) { navigation_wrap = enable ? 1 : 0; }
     inline void set_persistence(menu_persistence_ctx_fptr_t load_cb, menu_persistence_ctx_fptr_t save_cb, void *ctx) {
         persistence = menu_persistence_t(load_cb, save_cb, ctx);
     }
@@ -1350,18 +1360,34 @@ struct menu_runtime_t {
         }
         return false;
     }
-    static inline bool next_selectable(menu_cursor_t const &c, uint8_t total, uint8_t start, int8_t dir, uint8_t *out_raw) {
+    static inline bool next_selectable(menu_cursor_t const &c, uint8_t total, uint8_t start, int8_t dir, uint8_t *out_raw, bool wrap) {
         if (total == 0) { return false; }
         uint8_t idx = start;
         for (uint8_t tries = 0; tries < total; ++tries) {
-            if (dir < 0) { idx = (idx == 0) ? static_cast<uint8_t>(total - 1) : static_cast<uint8_t>(idx - 1); }
-            else { idx = static_cast<uint8_t>((idx + 1) % total); }
+            if (dir < 0) {
+                if (idx == 0) {
+                    if (!wrap) { return false; }
+                    idx = static_cast<uint8_t>(total - 1);
+                } else {
+                    idx = static_cast<uint8_t>(idx - 1);
+                }
+            } else {
+                if (static_cast<uint16_t>(idx) + 1U >= total) {
+                    if (!wrap) { return false; }
+                    idx = 0;
+                } else {
+                    idx = static_cast<uint8_t>(idx + 1);
+                }
+            }
             if (menu_selectable(c, idx)) {
                 if (out_raw) { *out_raw = idx; }
                 return true;
             }
         }
         return false;
+    }
+    static inline bool next_selectable(menu_cursor_t const &c, uint8_t total, uint8_t start, int8_t dir, uint8_t *out_raw) {
+        return next_selectable(c, total, start, dir, out_raw, true);
     }
     static inline void clamp_menu_view(menu_cursor_t &c, uint8_t total, uint8_t visible_total, uint8_t height) {
         if (total == 0 || visible_total == 0) { c.selected = 0; c.top = 0; return; }
@@ -1569,7 +1595,7 @@ struct menu_runtime_t {
         uint8_t next = cur.selected;
         bool moved = false;
         for (uint8_t i = 0; i < steps; ++i) {
-            if (next_selectable(cur, total, next, dir, &next)) { moved = true; }
+            if (next_selectable(cur, total, next, dir, &next, navigation_wrap != 0)) { moved = true; }
         }
         if (moved && next != cur.selected) { cur.selected = next; dirty = 1; }
     }
