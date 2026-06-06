@@ -199,7 +199,28 @@ export function defaultTargetSettings(profileId = "arduino-serial") {
       dc: defaults.pins?.dc || "TFT_DC",
       rst: defaults.pins?.rst || "TFT_RST"
     },
+    buttonPins: {
+      up: "2",
+      down: "3",
+      select: "4",
+      cancel: "5",
+      left: "MENU_BUTTON_UNUSED",
+      right: "MENU_BUTTON_UNUSED"
+    },
+    serialKeyMap: {
+      up: "w",
+      down: "s",
+      select: "e",
+      cancel: "q",
+      left: "a",
+      right: "d"
+    },
     inputAdapter: profile.id === "desktop-stdio" ? "stdio-keys" : "serial-keys",
+    serialKeyCaseInsensitive: true,
+    buttonsActiveLow: true,
+    buttonDebounceMs: 20,
+    gesturePin: "2",
+    customEventReader: "readMenuInput",
     navigationWrap: false,
     serialAutoscroll: true,
     serialTimestamps: false,
@@ -225,6 +246,14 @@ export function normalizeTargetSettings(input) {
       ...base.pins,
       ...(input?.pins || {})
     },
+    buttonPins: {
+      ...base.buttonPins,
+      ...(input?.buttonPins || {})
+    },
+    serialKeyMap: {
+      ...base.serialKeyMap,
+      ...(input?.serialKeyMap || {})
+    },
     assetExport: {
       ...base.assetExport,
       ...(input?.assetExport || {})
@@ -243,6 +272,24 @@ export function normalizeTargetSettings(input) {
   merged.pins.cs = safeName(merged.pins.cs || "TFT_CS");
   merged.pins.dc = safeName(merged.pins.dc || "TFT_DC");
   merged.pins.rst = safeName(merged.pins.rst || "TFT_RST");
+  merged.inputAdapter = normalizeInputAdapter(merged.inputAdapter, profile.id);
+  merged.buttonPins.up = pinName(merged.buttonPins.up || base.buttonPins.up);
+  merged.buttonPins.down = pinName(merged.buttonPins.down || base.buttonPins.down);
+  merged.buttonPins.select = pinName(merged.buttonPins.select || base.buttonPins.select);
+  merged.buttonPins.cancel = pinName(merged.buttonPins.cancel || base.buttonPins.cancel);
+  merged.buttonPins.left = pinName(merged.buttonPins.left || base.buttonPins.left);
+  merged.buttonPins.right = pinName(merged.buttonPins.right || base.buttonPins.right);
+  merged.serialKeyMap.up = keyChar(merged.serialKeyMap.up || base.serialKeyMap.up);
+  merged.serialKeyMap.down = keyChar(merged.serialKeyMap.down || base.serialKeyMap.down);
+  merged.serialKeyMap.select = keyChar(merged.serialKeyMap.select || base.serialKeyMap.select);
+  merged.serialKeyMap.cancel = keyChar(merged.serialKeyMap.cancel || base.serialKeyMap.cancel);
+  merged.serialKeyMap.left = keyChar(merged.serialKeyMap.left || base.serialKeyMap.left);
+  merged.serialKeyMap.right = keyChar(merged.serialKeyMap.right || base.serialKeyMap.right);
+  merged.serialKeyCaseInsensitive = Boolean(merged.serialKeyCaseInsensitive);
+  merged.buttonsActiveLow = Boolean(merged.buttonsActiveLow);
+  merged.buttonDebounceMs = nonNegativeNumber(merged.buttonDebounceMs, base.buttonDebounceMs);
+  merged.gesturePin = pinName(merged.gesturePin || base.gesturePin);
+  merged.customEventReader = safeName(merged.customEventReader || base.customEventReader);
   merged.navigationWrap = Boolean(merged.navigationWrap);
   merged.serialAutoscroll = Boolean(merged.serialAutoscroll);
   merged.serialTimestamps = Boolean(merged.serialTimestamps);
@@ -276,4 +323,18 @@ function positiveNumber(value, fallback) {
 
 function safeName(value) {
   return String(value || "").replace(/[^A-Za-z0-9_]/g, "_").replace(/^([^A-Za-z_])/, "_$1") || "value";
+}
+
+function pinName(value) {
+  return String(value || "").trim().replace(/[^A-Za-z0-9_]/g, "_") || "MENU_BUTTON_UNUSED";
+}
+
+function keyChar(value) {
+  return String(value || "").charAt(0);
+}
+
+function normalizeInputAdapter(value, profileId) {
+  const valid = ["serial-keys", "stdio-keys", "gpio-buttons", "button-gestures", "custom-event"];
+  if (valid.includes(value)) return value;
+  return profileId === "desktop-stdio" ? "stdio-keys" : "serial-keys";
 }

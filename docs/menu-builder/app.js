@@ -106,6 +106,23 @@ const els = {
   targetPinDc: document.querySelector("#target-pin-dc"),
   targetPinRst: document.querySelector("#target-pin-rst"),
   targetInputAdapter: document.querySelector("#target-input-adapter"),
+  targetKeyUp: document.querySelector("#target-key-up"),
+  targetKeyDown: document.querySelector("#target-key-down"),
+  targetKeySelect: document.querySelector("#target-key-select"),
+  targetKeyCancel: document.querySelector("#target-key-cancel"),
+  targetKeyLeft: document.querySelector("#target-key-left"),
+  targetKeyRight: document.querySelector("#target-key-right"),
+  targetKeyCaseInsensitive: document.querySelector("#target-key-case-insensitive"),
+  targetButtonUp: document.querySelector("#target-button-up"),
+  targetButtonDown: document.querySelector("#target-button-down"),
+  targetButtonSelect: document.querySelector("#target-button-select"),
+  targetButtonCancel: document.querySelector("#target-button-cancel"),
+  targetButtonLeft: document.querySelector("#target-button-left"),
+  targetButtonRight: document.querySelector("#target-button-right"),
+  targetButtonDebounce: document.querySelector("#target-button-debounce"),
+  targetButtonsActiveLow: document.querySelector("#target-buttons-active-low"),
+  targetGesturePin: document.querySelector("#target-gesture-pin"),
+  targetCustomEventReader: document.querySelector("#target-custom-event-reader"),
   targetNavigationWrap: document.querySelector("#target-navigation-wrap"),
   targetSerialAutoscroll: document.querySelector("#target-serial-autoscroll"),
   targetSerialTimestamps: document.querySelector("#target-serial-timestamps"),
@@ -706,17 +723,36 @@ function renderTargetSettings() {
   els.targetPinDc.value = settings.pins.dc;
   els.targetPinRst.value = settings.pins.rst;
   els.targetInputAdapter.value = settings.inputAdapter;
+  els.targetKeyUp.value = settings.serialKeyMap.up;
+  els.targetKeyDown.value = settings.serialKeyMap.down;
+  els.targetKeySelect.value = settings.serialKeyMap.select;
+  els.targetKeyCancel.value = settings.serialKeyMap.cancel;
+  els.targetKeyLeft.value = settings.serialKeyMap.left;
+  els.targetKeyRight.value = settings.serialKeyMap.right;
+  els.targetKeyCaseInsensitive.checked = Boolean(settings.serialKeyCaseInsensitive);
+  els.targetButtonUp.value = settings.buttonPins.up;
+  els.targetButtonDown.value = settings.buttonPins.down;
+  els.targetButtonSelect.value = settings.buttonPins.select;
+  els.targetButtonCancel.value = settings.buttonPins.cancel;
+  els.targetButtonLeft.value = settings.buttonPins.left;
+  els.targetButtonRight.value = settings.buttonPins.right;
+  els.targetButtonDebounce.value = settings.buttonDebounceMs;
+  els.targetButtonsActiveLow.checked = Boolean(settings.buttonsActiveLow);
+  els.targetGesturePin.value = settings.gesturePin;
+  els.targetCustomEventReader.value = settings.customEventReader;
   els.targetNavigationWrap.checked = Boolean(settings.navigationWrap);
   els.targetSerialAutoscroll.checked = Boolean(settings.serialAutoscroll);
   els.targetSerialTimestamps.checked = Boolean(settings.serialTimestamps);
   els.targetAnsiColor.checked = Boolean(settings.ansiColor);
   els.targetAnsiHideCursor.checked = Boolean(settings.ansiHideCursor);
   els.targetAnsiClearOnBegin.checked = Boolean(settings.ansiClearOnBegin);
+  updateInputSettingVisibility(settings.inputAdapter);
   els.targetSummary.innerHTML = `
     <section>
       <h3>${escapeHtml(profile.label)}</h3>
       <ul>
         ${profileInstructions(profile).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+        <li>Selected input adapter: ${escapeHtml(inputAdapterLabel(settings.inputAdapter))}.</li>
         <li>Navigation: ${settings.navigationWrap ? "wraps from either menu end to the other" : "stops at the first and last selectable rows"}.</li>
         ${profile.input.includes("Serial") || profile.display.includes("Serial") || profile.display.includes("Print") ? `<li>Serial baud: ${settings.serialBaud}.</li>` : ""}
         ${profile.previewRendererId === "serial-stream" ? `<li>Serial preview: ${settings.serialAutoscroll ? "autoscroll on" : "autoscroll off"}, timestamps ${settings.serialTimestamps ? "on" : "off"}.</li>` : ""}
@@ -724,6 +760,39 @@ function renderTargetSettings() {
       </ul>
     </section>
   `;
+}
+
+function updateInputSettingVisibility(inputAdapter) {
+  const showSerial = inputAdapter === "serial-keys";
+  const showGpio = inputAdapter === "gpio-buttons";
+  const showGesture = inputAdapter === "button-gestures";
+  const showCustom = inputAdapter === "custom-event";
+  [
+    els.targetKeyUp,
+    els.targetKeyDown,
+    els.targetKeySelect,
+    els.targetKeyCancel,
+    els.targetKeyLeft,
+    els.targetKeyRight,
+    els.targetKeyCaseInsensitive
+  ].forEach((field) => setControlGroupHidden(field, !showSerial));
+  [
+    els.targetButtonUp,
+    els.targetButtonDown,
+    els.targetButtonSelect,
+    els.targetButtonCancel,
+    els.targetButtonLeft,
+    els.targetButtonRight,
+    els.targetButtonDebounce,
+    els.targetButtonsActiveLow
+  ].forEach((field) => setControlGroupHidden(field, !showGpio));
+  setControlGroupHidden(els.targetGesturePin, !showGesture);
+  setControlGroupHidden(els.targetCustomEventReader, !showCustom);
+}
+
+function setControlGroupHidden(field, hidden) {
+  const group = field?.closest(".field, .checkline");
+  if (group) group.hidden = hidden;
 }
 
 function renderStatusWidgetEditor() {
@@ -1281,6 +1350,119 @@ function navigationSetupCode(runtimeName) {
   return model.targetSettings.navigationWrap ? `\n    ${runtimeName}.set_navigation_wrap(true);` : "";
 }
 
+function arduinoInputInclude(settings) {
+  if (settings.inputAdapter === "button-gestures") {
+    return "#include <ButtonGestures.h>\n";
+  }
+  return "";
+}
+
+function arduinoInputGlobals(settings, inputName = "input") {
+  if (settings.inputAdapter === "gpio-buttons") {
+    return `static buttons_ctx_t ${inputName}Buttons;`;
+  }
+  if (settings.inputAdapter === "button-gestures") {
+    return `#define BM_GESTURE_BUTTON_PIN ${settings.gesturePin}
+
+static ButtonGestures ${inputName}Button(BM_GESTURE_BUTTON_PIN, LOW, INPUT_PULLUP);
+static input_rich_event_ctx_t ${inputName}EventStorage;
+
+struct ${inputName}_gesture_input_t {
+    ButtonGestures *button;
+};
+
+static ${inputName}_gesture_input_t ${inputName}GestureInput = { &${inputName}Button };
+
+static menu_event_t read${capitalize(inputName)}GestureInput(void *raw) {
+    ${inputName}_gesture_input_t *ctx = static_cast<${inputName}_gesture_input_t *>(raw);
+    if (!ctx || !ctx->button) {
+        return menu_event(Choice_Invalid);
+    }
+    switch (ctx->button->check_button()) {
+        case SINGLE_PRESS_SHORT: return menu_event(Choice_Select);
+        case SINGLE_PRESS_LONG: return menu_choice_event(Choice_Cancel, MENU_EVENT_LONG);
+        case DOUBLE_PRESS_SHORT: return menu_event(Choice_Down);
+        case DOUBLE_PRESS_LONG: return menu_choice_event(Choice_Up, MENU_EVENT_LONG);
+        case TRIPLE_PRESS_SHORT: return menu_event(Choice_Right);
+        case TRIPLE_PRESS_LONG: return menu_choice_event(Choice_Left, MENU_EVENT_LONG);
+        default: return menu_event(Choice_Invalid);
+    }
+}`;
+  }
+  if (settings.inputAdapter === "custom-event") {
+    const reader = safeCppIdentifier(settings.customEventReader || "readMenuInput");
+    const supportSource = `${model.snippets.backing || ""}\n${model.snippets.callbacks || ""}`;
+    const readerStub = hasSymbol(supportSource, reader) ? "" : `
+
+static menu_event_t ${reader}(void *) {
+    return menu_event(Choice_Invalid);
+}`;
+    return `static input_rich_event_ctx_t ${inputName}EventStorage;${readerStub}`;
+  }
+  const keys = settings.serialKeyMap;
+  return `static serial_keys_ctx_t ${inputName}Serial;
+static stream_keymap_t const ${inputName}KeyMap = {
+    ${cppCharLiteral(keys.up)},
+    ${cppCharLiteral(keys.down)},
+    ${cppCharLiteral(keys.select)},
+    ${cppCharLiteral(keys.cancel)},
+    ${cppCharLiteral(keys.left)},
+    ${cppCharLiteral(keys.right)},
+    ${settings.serialKeyCaseInsensitive ? "1" : "0"}
+};`;
+}
+
+function arduinoInputSetup(settings, inputName = "input") {
+  if (settings.inputAdapter === "gpio-buttons") {
+    const pins = settings.buttonPins;
+    return `input_source_t input = make_buttons_input(
+        ${inputName}Buttons,
+        ${pins.up},
+        ${pins.down},
+        ${pins.select},
+        ${pins.cancel},
+        ${pins.left},
+        ${pins.right},
+        ${settings.buttonsActiveLow ? "true" : "false"},
+        ${settings.buttonDebounceMs}
+    );`;
+  }
+  if (settings.inputAdapter === "button-gestures") {
+    return `input_source_t input = make_event_input(${inputName}EventStorage, &${inputName}GestureInput, read${capitalize(inputName)}GestureInput);`;
+  }
+  if (settings.inputAdapter === "custom-event") {
+    const reader = safeCppIdentifier(settings.customEventReader || "readMenuInput");
+    return `input_source_t input = make_event_input(${inputName}EventStorage, 0, ${reader});`;
+  }
+  return `input_source_t input = make_serial_keys_input(${inputName}Serial, ${inputName}KeyMap);`;
+}
+
+function inputAdapterLabel(id) {
+  return {
+    "serial-keys": "Serial keys",
+    "stdio-keys": "stdio keys",
+    "gpio-buttons": "Direct GPIO buttons",
+    "button-gestures": "ButtonGestures single button",
+    "custom-event": "Custom event input"
+  }[id] || id;
+}
+
+function capitalize(value) {
+  const text = String(value || "");
+  return text ? text[0].toUpperCase() + text.slice(1) : "";
+}
+
+function cppCharLiteral(value) {
+  const ch = String(value || "").charAt(0);
+  if (!ch) return "0";
+  if (ch === "\\") return "'\\\\'";
+  if (ch === "'") return "'\\''";
+  if (ch === "\n") return "'\\n'";
+  if (ch === "\r") return "'\\r'";
+  if (ch === "\t") return "'\\t'";
+  return `'${ch}'`;
+}
+
 function settingsForProfile(profileId) {
   const settings = model.targetSettings.profileId === profileId ? model.targetSettings : defaultTargetSettings(profileId);
   return normalizeTargetSettings(settings);
@@ -1290,6 +1472,7 @@ function generateFirmwareSketch() {
   const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
   const settings = settingsForProfile("arduino-serial");
   return `#include <BetterMenu.h>
+${arduinoInputInclude(settings)}
 
 ${generateSupportCode()}
 
@@ -1297,7 +1480,7 @@ static const auto ${menuName} =
 ${menuExpression(model.rootMenuId, 0)};
 
 static menu_runtime_t runtime;
-static serial_keys_ctx_t keyInput;
+${arduinoInputGlobals(settings, "keyInput")}
 static print_display_ctx_t serialDisplay;
 
 void setup() {
@@ -1307,7 +1490,7 @@ void setup() {
     Serial.println(F("BetterMenu Serial demo"));
     Serial.println(F("Use W/S to move, E to select, Q to go back, A/D to edit."));
 
-    input_source_t input = make_serial_keys_input(keyInput);
+    ${arduinoInputSetup(settings, "keyInput")}
     display_t display = make_print_display(serialDisplay, Serial, ${settings.width}, ${settings.height});
     runtime = menu_runtime_t::make(${menuName}, display, input, false);
     runtime.set_show_title(true);
@@ -1327,6 +1510,7 @@ function generateAnsiSerialSketch() {
   const width = Math.max(1, settings.width || 48);
   const height = Math.max(1, settings.height || 8);
   return `#include <BetterMenu.h>
+${arduinoInputInclude(settings)}
 
 #define BM_ANSI_COLOR ${settings.ansiColor ? 1 : 0}
 #define BM_ANSI_HIDE_CURSOR ${settings.ansiHideCursor ? 1 : 0}
@@ -1338,7 +1522,7 @@ static const auto ${menuName} =
 ${menuExpression(model.rootMenuId, 0)};
 
 static menu_runtime_t menuRuntime;
-static serial_keys_ctx_t serialInput;
+${arduinoInputGlobals(settings, "serialInput")}
 
 struct ansi_display_ctx_t {
     Print *out;
@@ -1474,7 +1658,7 @@ void setup() {
     while (!Serial) {
     }
 
-    input_source_t input = make_serial_keys_input(serialInput);
+    ${arduinoInputSetup(settings, "serialInput")}
     display_t display = make_ansi_print_display(ansiDisplay, Serial, ${width}, ${height}, ${settings.originRow}, ${settings.originCol});
     menuRuntime = menu_runtime_t::make(${menuName}, display, input, false);
     menuRuntime.set_show_title(true);
@@ -1862,6 +2046,7 @@ function generateAdafruitSketch() {
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
 #include <BetterMenu.h>
+${arduinoInputInclude(settings)}
 
 #include "BetterMenuGeneratedAssets.h"
 
@@ -1871,7 +2056,7 @@ function generateAdafruitSketch() {
 
 static Adafruit_ILI9341 ${settings.displayObject}(${settings.pins.cs}, ${settings.pins.dc}, ${settings.pins.rst});
 static menu_runtime_t menuRuntime;
-static serial_keys_ctx_t serialInput;
+${arduinoInputGlobals(settings, "menuInput")}
 
 ${generateSupportCode()}
 
@@ -2063,7 +2248,7 @@ void setup() {
     ${settings.displayObject}.setRotation(${settings.rotation});
     ${settings.displayObject}.setTextWrap(false);
 
-    input_source_t input = make_serial_keys_input(serialInput);
+    ${arduinoInputSetup(settings, "menuInput")}
     display_t display = make_display(60, 6, &menuRuntime, &ADAFRUIT_DISPLAY_OPS);
     menuRuntime = menu_runtime_t::make(${menuName}, display, input, false);
     menuRuntime.set_show_title(true);
@@ -2194,6 +2379,24 @@ function collectDiagnostics() {
   diagnostics.push(...statusWidgetDiagnostics(model.statusWidgets));
   if (profile.capabilities.statusWidgets === false && renderedStatusWidgets.length) {
     diagnostics.push(`${profile.label} does not render graphical status widgets.`);
+  }
+  if (profile.id === "desktop-stdio" && model.targetSettings.inputAdapter !== "stdio-keys") {
+    diagnostics.push("Desktop stdio output uses getchar-style input; Arduino Serial, GPIO, ButtonGestures, and custom firmware adapters are not used by that profile.");
+  }
+  if (profile.id !== "desktop-stdio" && model.targetSettings.inputAdapter === "stdio-keys") {
+    diagnostics.push(`${profile.label} is an Arduino/web target; stdio keys are only used by the desktop C++ profile.`);
+  }
+  if (model.targetSettings.inputAdapter === "gpio-buttons") {
+    const pins = model.targetSettings.buttonPins || {};
+    for (const [role, pin] of Object.entries(pins)) {
+      if (!pin) diagnostics.push(`GPIO button ${role} pin needs a value or MENU_BUTTON_UNUSED.`);
+    }
+  }
+  if (model.targetSettings.inputAdapter === "custom-event" && !isCppIdentifier(model.targetSettings.customEventReader)) {
+    diagnostics.push(`Custom event reader has an invalid C++ symbol: ${model.targetSettings.customEventReader}.`);
+  }
+  if (model.targetSettings.inputAdapter === "button-gestures") {
+    diagnostics.push("ButtonGestures input requires the ButtonGestures library in the Arduino development environment.");
   }
   for (const widget of renderedStatusWidgets.filter((entry) => entry.type === "chip" || entry.type === "battery")) {
     const symbol = String(widget.sourceSymbol || "").trim();
@@ -2763,7 +2966,7 @@ function handleStatusWidgetInput(event) {
 }
 
 function updateTargetSetting(prop, value) {
-  if (["width", "height", "rotation", "originRow", "originCol", "serialBaud"].includes(prop)) {
+  if (["width", "height", "rotation", "originRow", "originCol", "serialBaud", "buttonDebounceMs"].includes(prop)) {
     model.targetSettings[prop] = numberOr(value, 0);
   } else {
     model.targetSettings[prop] = value;
@@ -2868,6 +3071,20 @@ function installEventHandlers() {
   document.querySelectorAll("[data-target-pin]").forEach((field) => {
     field.addEventListener("input", () => {
       model.targetSettings.pins[field.dataset.targetPin] = field.value;
+      model.targetSettings = normalizeTargetSettings(model.targetSettings);
+      renderAll();
+    });
+  });
+  document.querySelectorAll("[data-target-key]").forEach((field) => {
+    field.addEventListener("input", () => {
+      model.targetSettings.serialKeyMap[field.dataset.targetKey] = field.value;
+      model.targetSettings = normalizeTargetSettings(model.targetSettings);
+      renderAll();
+    });
+  });
+  document.querySelectorAll("[data-target-button-pin]").forEach((field) => {
+    field.addEventListener("input", () => {
+      model.targetSettings.buttonPins[field.dataset.targetButtonPin] = field.value;
       model.targetSettings = normalizeTargetSettings(model.targetSettings);
       renderAll();
     });

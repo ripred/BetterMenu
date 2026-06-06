@@ -242,8 +242,79 @@
               <select id="target-input-adapter" data-target-prop="inputAdapter">
                 <option value="serial-keys">Serial keys</option>
                 <option value="stdio-keys">stdio keys</option>
+                <option value="gpio-buttons">Direct GPIO buttons</option>
+                <option value="button-gestures">ButtonGestures single button</option>
+                <option value="custom-event">Custom event input</option>
               </select>
             </div>
+            <div class="field">
+              <label for="target-key-up">Up key</label>
+              <input id="target-key-up" data-target-key="up" type="text" maxlength="1">
+            </div>
+            <div class="field">
+              <label for="target-key-down">Down key</label>
+              <input id="target-key-down" data-target-key="down" type="text" maxlength="1">
+            </div>
+            <div class="field">
+              <label for="target-key-select">Select key</label>
+              <input id="target-key-select" data-target-key="select" type="text" maxlength="1">
+            </div>
+            <div class="field">
+              <label for="target-key-cancel">Back key</label>
+              <input id="target-key-cancel" data-target-key="cancel" type="text" maxlength="1">
+            </div>
+            <div class="field">
+              <label for="target-key-left">Left key</label>
+              <input id="target-key-left" data-target-key="left" type="text" maxlength="1">
+            </div>
+            <div class="field">
+              <label for="target-key-right">Right key</label>
+              <input id="target-key-right" data-target-key="right" type="text" maxlength="1">
+            </div>
+            <label class="checkline target-check">
+              <input id="target-key-case-insensitive" data-target-prop="serialKeyCaseInsensitive" type="checkbox">
+              Serial keys ignore case
+            </label>
+            <div class="field">
+              <label for="target-button-up">Up button pin</label>
+              <input id="target-button-up" data-target-button-pin="up" type="text">
+            </div>
+            <div class="field">
+              <label for="target-button-down">Down button pin</label>
+              <input id="target-button-down" data-target-button-pin="down" type="text">
+            </div>
+            <div class="field">
+              <label for="target-button-select">Select button pin</label>
+              <input id="target-button-select" data-target-button-pin="select" type="text">
+            </div>
+            <div class="field">
+              <label for="target-button-cancel">Back button pin</label>
+              <input id="target-button-cancel" data-target-button-pin="cancel" type="text">
+            </div>
+            <div class="field">
+              <label for="target-button-left">Left button pin</label>
+              <input id="target-button-left" data-target-button-pin="left" type="text">
+            </div>
+            <div class="field">
+              <label for="target-button-right">Right button pin</label>
+              <input id="target-button-right" data-target-button-pin="right" type="text">
+            </div>
+            <div class="field">
+              <label for="target-button-debounce">Button debounce ms</label>
+              <input id="target-button-debounce" data-target-prop="buttonDebounceMs" type="number" min="0">
+            </div>
+            <div class="field">
+              <label for="target-gesture-pin">Gesture button pin</label>
+              <input id="target-gesture-pin" data-target-prop="gesturePin" type="text">
+            </div>
+            <div class="field">
+              <label for="target-custom-event-reader">Custom event reader</label>
+              <input id="target-custom-event-reader" data-target-prop="customEventReader" type="text">
+            </div>
+            <label class="checkline target-check">
+              <input id="target-buttons-active-low" data-target-prop="buttonsActiveLow" type="checkbox">
+              Buttons active low
+            </label>
             <label class="checkline target-check">
               <input id="target-navigation-wrap" data-target-prop="navigationWrap" type="checkbox">
               Wrap at menu ends
