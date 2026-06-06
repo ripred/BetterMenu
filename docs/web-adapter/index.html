@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BetterMenu WebAssembly Adapter</title>
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=remote-layout">
 </head>
 <body>
   <main class="shell">
@@ -18,13 +18,13 @@
       <div class="menu-workspace">
         <div id="menu" class="menu" role="listbox" aria-label="Rendered BetterMenu rows"></div>
 
-        <div class="controls" aria-label="Menu controls">
-          <button class="control-button remote-up" type="button" data-choice="3" aria-label="Move up" title="Move up"></button>
-          <button class="control-button remote-left" type="button" data-choice="1" aria-label="Move left" title="Move left"></button>
-          <button class="control-button remote-select" type="button" data-choice="5" aria-label="Select" title="Select"></button>
-          <button class="control-button remote-right" type="button" data-choice="2" aria-label="Move right" title="Move right"></button>
-          <button class="control-button remote-down" type="button" data-choice="4" aria-label="Move down" title="Move down"></button>
-          <button class="control-button remote-back" type="button" data-choice="6" aria-label="Back" title="Back"></button>
+        <div class="preview-remote" aria-label="Menu controls">
+          <button class="remote-button remote-up" type="button" data-choice="3" aria-label="Move up" title="Move up"></button>
+          <button class="remote-button remote-left" type="button" data-choice="1" aria-label="Move left" title="Move left"></button>
+          <button class="remote-button remote-select" type="button" data-choice="5" aria-label="Select" title="Select"></button>
+          <button class="remote-button remote-right" type="button" data-choice="2" aria-label="Move right" title="Move right"></button>
+          <button class="remote-button remote-down" type="button" data-choice="4" aria-label="Move down" title="Move down"></button>
+          <button class="remote-button remote-back" type="button" data-choice="6" aria-label="Back" title="Back"></button>
         </div>
       </div>
     </section>

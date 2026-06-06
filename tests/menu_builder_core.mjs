@@ -20,6 +20,12 @@ import {
   normalizeStatusWidgets,
   statusWidgetDiagnostics
 } from "../docs/menu-builder/status_widgets.mjs";
+import { roverConsoleModel } from "../docs/menu-builder/samples/rover_console_model.mjs";
+import {
+  createWebDomWasmPackage,
+  webMenuCaptureCppSource,
+  webMenuCaptureHeaderSource
+} from "../docs/menu-builder/web_dom_wasm_templates.mjs";
 
 assert.equal(targetProfileById("arduino-serial").capabilities.text, true);
 assert.equal(targetProfileById("adafruit-ili9341-320x240-spi").capabilities.bitmap, true);
@@ -121,3 +127,19 @@ assert.equal(firstStatusWidget(disabledChip, "chip", { enabledOnly: false }).ena
 assert.match(statusWidgetDiagnostics(disabledChip).join("\n"), /Battery status widget needs a source symbol/);
 assert.match(statusWidgetDiagnostics(disabledChip).join("\n"), /Battery status widget max must be greater than min/);
 assert.deepEqual(JSON.parse(JSON.stringify(normalizedWidgets))[0].extraField, "kept");
+
+const roverModel = roverConsoleModel();
+assert.equal(roverModel.projectName, "RoverConsole Builder Demo");
+assert.ok(roverModel.items.some((item) => item.label === "E-STOP"));
+assert.ok(roverModel.assets.some((asset) => asset.key === "battery"));
+assert.equal(firstStatusWidget(roverModel.statusWidgets, "battery").sourceSymbol, "battCentiV");
+
+const webPackage = createWebDomWasmPackage(roverModel, "#include \"WebMenuCapture.h\"\n");
+assert.ok(webPackage.files["WebMenuCapture.h"].includes("make_web_menu_capture_display"));
+assert.ok(webPackage.files["WebMenuCapture.cpp"].includes("WEB_CAPTURE_DISPLAY_OPS"));
+assert.ok(webPackage.files["web_menu_dom_adapter.js"].includes("initWebMenuDomAdapter"));
+assert.ok(webPackage.files["menu_data.js"].includes("E-STOP"));
+assert.ok(webPackage.files["index.html"].includes("preview-remote"));
+assert.ok(webPackage.files["styles.css"].includes(".remote-button"));
+assert.ok(webMenuCaptureHeaderSource().includes("web_menu_capture_row_count"));
+assert.ok(webMenuCaptureCppSource().includes("web_menu_capture_visible_window"));

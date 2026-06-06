@@ -25,6 +25,8 @@ import {
   normalizeStatusWidgets,
   statusWidgetDiagnostics
 } from "./status_widgets.mjs";
+import { roverConsoleModel } from "./samples/rover_console_model.mjs";
+import { createWebDomWasmPackage } from "./web_dom_wasm_templates.mjs";
 
 const storageKey = "bettermenu.menuBuilder.project.v3";
 
@@ -148,70 +150,6 @@ function defaultModel() {
   };
 }
 
-function roverConsoleModel() {
-  const assets = defaultRoverAssets();
-  const assetId = (key) => assets.find((asset) => asset.key === key)?.id || "";
-  return {
-    version: 2,
-    projectName: "RoverConsole Builder Demo",
-    rootMenuId: "root",
-    generateStubs: false,
-    menus: [
-      { id: "root", title: "Rover", itemIds: ["drive", "maxSpeed", "headlights", "pitchTrim", "pidMenu", "sensorsMenu", "telemetry", "telemetryRate", "calibrate", "armed", "estop", "systemMenu"] },
-      { id: "pid", title: "PID tuning", itemIds: ["kp", "ki", "kd", "loopRate", "saveTune"] },
-      { id: "sensors", title: "Sensors", itemIds: ["pitch", "heading", "battery", "range", "cellTemp"] },
-      { id: "system", title: "System", itemIds: ["brightness", "theme", "screenFlip", "devTools", "firmware", "uptime"] }
-    ],
-    items: [
-      withIconAsset(selectItem("drive", "Drive mode", "driveMode", [["Idle", 0], ["Manual", 1], ["Auto", 2], ["Follow", 3]], 1, "compass", "A fixed-choice select row for rover operating mode."), assetId("compass")),
-      withIconAsset(intItem("maxSpeed", "Max speed", "maxSpeedPct", 0, 100, 5, 65, "speed", "An editable integer row formatted as a percentage.", formatDec("formatPercent", "&maxSpeedPct")), assetId("speed")),
-      withIconAsset(boolItem("headlights", "Headlights", "headlights", "Off", "On", false, "beam", "A boolean row rendered through BetterMenu value labels."), assetId("beam")),
-      withIconAsset(valueItem("pitchTrim", "Pitch trim", "getInt", "setInt", "&pitchTrimTenth", -50, 50, 1, "level", "A mutable getter/setter value row with a signed degree formatter.", formatDec("formatTrim", "&pitchTrimTenth")), assetId("level")),
-      withIconAsset(menuItem("pidMenu", "PID tuning", "pid", "sliders", "A child menu with mutable PID gains and a save action."), assetId("sliders")),
-      withIconAsset(menuItem("sensorsMenu", "Sensors", "sensors", "radar", "A child menu of read-only telemetry values."), assetId("radar")),
-      withIconAsset(boolItem("telemetry", "Telemetry", "telemetryStream", "Quiet", "Stream", false, "broadcast", "A boolean row with an on-change callback.", onChangeDec("onChanged", "0")), assetId("broadcast")),
-      withIconAsset(intItem("telemetryRate", "Telemetry rate", "telemetryHz", 1, 50, 1, 5, "clock", "A disabled row until telemetry streaming is enabled.", mergeDecorators(formatDec("formatHz", "&telemetryHz"), disabledDec("telemetryRateDisabled", "0"))), assetId("clock")),
-      withIconAsset(funcItem("calibrate", "Calibrate IMU", "action", "crosshair", "A function row that forwards selection to firmware code."), assetId("crosshair")),
-      withIconAsset(boolItem("armed", "Arm motors", "armed", "Safe", "Armed", false, "shield", "A boolean row using custom labels.", onChangeDec("onChanged", "0")), assetId("shield")),
-      withIconAsset(funcItem("estop", "E-STOP", "action", "stop", "A high-priority function row carried through the same action path."), assetId("stop")),
-      withIconAsset(menuItem("systemMenu", "System", "system", "gear", "Display preferences and system metadata."), assetId("gear")),
-      withIconAsset(valueItem("kp", "Kp", "getInt", "setInt", "&kpMilli", 0, 5000, 10, "slider", "A mutable fixed-point value row.", formatDec("formatMilli2", "&kpMilli")), assetId("slider")),
-      withIconAsset(valueItem("ki", "Ki", "getInt", "setInt", "&kiMilli", 0, 5000, 10, "slider", "A mutable fixed-point value row.", formatDec("formatMilli2", "&kiMilli")), assetId("slider")),
-      withIconAsset(valueItem("kd", "Kd", "getInt", "setInt", "&kdMilli", 0, 5000, 10, "slider", "A mutable fixed-point value row.", formatDec("formatMilli2", "&kdMilli")), assetId("slider")),
-      withIconAsset(intItem("loopRate", "Loop rate", "loopRateHz", 50, 400, 10, 200, "clock", "A standard integer row inside the PID submenu."), assetId("clock")),
-      withIconAsset(funcItem("saveTune", "Save tune", "action", "save", "A function row for persisting PID values."), assetId("save")),
-      withIconAsset(valueItem("pitch", "Pitch", "getInt", "", "&pitchTenth", 0, 0, 1, "level", "A read-only value formatted as signed tenths of a degree.", formatDec("formatPitch", "&pitchTenth")), assetId("level")),
-      withIconAsset(valueItem("heading", "Heading", "getInt", "", "&headingDeg", 0, 0, 1, "compass", "A read-only heading value.", formatDec("formatHeading", "&headingDeg")), assetId("compass")),
-      withIconAsset(valueItem("battery", "Battery", "getInt", "", "&battCentiV", 0, 0, 1, "battery", "A read-only centivolt value formatted as volts.", formatDec("formatVolts", "&battCentiV")), assetId("battery")),
-      withIconAsset(valueItem("range", "Range", "getInt", "", "&rangeMm", 0, 0, 1, "radar", "A read-only distance value.", formatDec("formatMm", "&rangeMm")), assetId("radar")),
-      withIconAsset(valueItem("cellTemp", "Cell temp", "getInt", "", "&cellTempC", 0, 0, 1, "thermo", "A read-only temperature value.", formatDec("formatTempC", "&cellTempC")), assetId("thermo")),
-      withIconAsset(intItem("brightness", "Brightness", "brightnessPct", 10, 100, 10, 80, "sun", "A display brightness integer row."), assetId("sun")),
-      withIconAsset(selectItem("theme", "Theme", "themeSel", [["Aurora", 0], ["Slate", 1], ["Mono", 2]], 0, "swatch", "A select row that also controls the hidden Dev tools row."), assetId("swatch")),
-      withIconAsset(boolItem("screenFlip", "Screen flip", "screenFlip", "Off", "On", false, "flip", "A boolean display orientation row."), assetId("flip")),
-      withIconAsset(funcItem("devTools", "Dev tools", "action", "tool", "A hidden row that appears only for the Mono theme.", hiddenDec("devToolsHidden", "0")), assetId("tool")),
-      withIconAsset(valueItem("firmware", "Firmware", "getInt", "", "&uptimeMin", 0, 0, 1, "chip", "A formatted read-only value.", formatDec("formatFirmware", "0")), assetId("chip")),
-      withIconAsset(valueItem("uptime", "Uptime", "getInt", "", "&uptimeMin", 0, 0, 1, "clock", "A formatted runtime value.", formatDec("formatUptime", "&uptimeMin")), assetId("clock"))
-    ],
-    snippets: {
-      backing: defaultBackingSnippet(),
-      callbacks: defaultCallbackSnippet()
-    },
-    icons: {},
-    content: {},
-    assets,
-    statusWidgets: [
-      { id: "armed-status", type: "chip", label: "Armed state", sourceSymbol: "armed", falseLabel: "READY", trueLabel: "ARMED" },
-      { id: "battery-status", type: "battery", label: "Battery", sourceSymbol: "battCentiV", min: 900, max: 1260 }
-    ],
-    targetSettings: defaultTargetSettings("adafruit-ili9341-320x240-spi"),
-    previewSettings: {
-      skinId: "rover-console",
-      visibleRows: 5,
-      zoom: 1.25
-    }
-  };
-}
-
 function intItem(id, label, stateSymbol, min, max, step, initial, icon, body, decorators = emptyDecorators()) {
   return {
     id,
@@ -304,11 +242,6 @@ function menuItem(id, label, childMenuId, icon, body, decorators = emptyDecorato
   };
 }
 
-function withIconAsset(item, iconAssetId) {
-  item.iconAssetId = iconAssetId || "";
-  return item;
-}
-
 function emptyDecorators() {
   return {
     format: { enabled: false, symbol: "", ctx: "0" },
@@ -316,22 +249,6 @@ function emptyDecorators() {
     hidden: { enabled: false, symbol: "", ctx: "0" },
     onChange: { enabled: false, symbol: "", ctx: "0" }
   };
-}
-
-function formatDec(symbol, ctx) {
-  return { format: { enabled: true, symbol, ctx } };
-}
-
-function disabledDec(symbol, ctx) {
-  return { disabled: { enabled: true, symbol, ctx } };
-}
-
-function hiddenDec(symbol, ctx) {
-  return { hidden: { enabled: true, symbol, ctx } };
-}
-
-function onChangeDec(symbol, ctx) {
-  return { onChange: { enabled: true, symbol, ctx } };
 }
 
 function mergeDecorators(...partials) {
@@ -343,202 +260,6 @@ function mergeDecorators(...partials) {
     }
   }
   return base;
-}
-
-function defaultBackingSnippet() {
-  return `static int driveMode = 1;
-static int maxSpeedPct = 65;
-static bool headlights = false;
-static int pitchTrimTenth = -15;
-static int kpMilli = 1200;
-static int kiMilli = 80;
-static int kdMilli = 450;
-static int loopRateHz = 200;
-static int pitchTenth = 23;
-static int headingDeg = 247;
-static int battCentiV = 1187;
-static int rangeMm = 412;
-static int cellTempC = 34;
-static bool telemetryStream = false;
-static int telemetryHz = 5;
-static bool armed = false;
-static int brightnessPct = 80;
-static int themeSel = 0;
-static bool screenFlip = false;
-static int uptimeMin = 154;`;
-}
-
-function defaultCallbackSnippet() {
-  return `static void action(void) {
-}
-
-static void onChanged(void *) {
-}
-
-static bool telemetryRateDisabled(void *) {
-    return !telemetryStream;
-}
-
-static bool devToolsHidden(void *) {
-    return themeSel != 2;
-}
-
-static int getInt(void *ctx) {
-    return ctx ? *static_cast<int *>(ctx) : 0;
-}
-
-static void setInt(void *ctx, int value) {
-    if (ctx) {
-        *static_cast<int *>(ctx) = value;
-    }
-}
-
-static void appendChar(char *out, uint8_t cap, uint8_t &pos, char c) {
-    if (pos + 1 < cap) {
-        out[pos++] = c;
-        out[pos] = '\\0';
-    }
-}
-
-static unsigned int absUnsigned(int value) {
-    return value < 0 ? (0U - static_cast<unsigned int>(value)) : static_cast<unsigned int>(value);
-}
-
-static void appendInt(char *out, uint8_t cap, uint8_t &pos, int value) {
-    char tmp[12];
-    bool neg = value < 0;
-    unsigned int v = neg ? (0U - static_cast<unsigned int>(value)) : static_cast<unsigned int>(value);
-    uint8_t len = 0;
-    do {
-        tmp[len++] = static_cast<char>('0' + (v % 10U));
-        v /= 10U;
-    } while (v && len < sizeof(tmp));
-    if (neg) {
-        appendChar(out, cap, pos, '-');
-    }
-    while (len) {
-        appendChar(out, cap, pos, tmp[--len]);
-    }
-}
-
-static void appendText(char *out, uint8_t cap, uint8_t &pos, char const *text) {
-    while (text && *text) {
-        appendChar(out, cap, pos, *text++);
-    }
-}
-
-static void formatIntUnit(int value, char const *unit, char *out, uint8_t cap) {
-    if (!out || cap == 0) {
-        return;
-    }
-    uint8_t pos = 0;
-    out[0] = '\\0';
-    appendInt(out, cap, pos, value);
-    appendText(out, cap, pos, unit);
-}
-
-static void formatPercent(void *ctx, char *out, uint8_t cap) {
-    formatIntUnit(ctx ? *static_cast<int *>(ctx) : 0, "%", out, cap);
-}
-
-static void formatMilli2(void *ctx, char *out, uint8_t cap) {
-    if (!out || cap == 0) {
-        return;
-    }
-    int value = ctx ? *static_cast<int *>(ctx) : 0;
-    unsigned int whole = absUnsigned(value) / 1000U;
-    unsigned int hundredths = (absUnsigned(value) % 1000U) / 10U;
-    uint8_t pos = 0;
-    out[0] = '\\0';
-    if (value < 0) {
-        appendChar(out, cap, pos, '-');
-    }
-    appendInt(out, cap, pos, static_cast<int>(whole));
-    appendChar(out, cap, pos, '.');
-    appendChar(out, cap, pos, static_cast<char>('0' + (hundredths / 10U)));
-    appendChar(out, cap, pos, static_cast<char>('0' + (hundredths % 10U)));
-}
-
-static void formatSignedTenths(int value, char *out, uint8_t cap) {
-    if (!out || cap == 0) {
-        return;
-    }
-    unsigned int av = absUnsigned(value);
-    uint8_t pos = 0;
-    out[0] = '\\0';
-    appendChar(out, cap, pos, value < 0 ? '-' : '+');
-    appendInt(out, cap, pos, static_cast<int>(av / 10U));
-    appendChar(out, cap, pos, '.');
-    appendChar(out, cap, pos, static_cast<char>('0' + (av % 10U)));
-    appendText(out, cap, pos, " deg");
-}
-
-static void formatTrim(void *ctx, char *out, uint8_t cap) {
-    formatSignedTenths(ctx ? *static_cast<int *>(ctx) : 0, out, cap);
-}
-
-static void formatPitch(void *ctx, char *out, uint8_t cap) {
-    formatSignedTenths(ctx ? *static_cast<int *>(ctx) : 0, out, cap);
-}
-
-static void formatHeading(void *ctx, char *out, uint8_t cap) {
-    formatIntUnit(ctx ? *static_cast<int *>(ctx) : 0, " deg", out, cap);
-}
-
-static void formatVolts(void *ctx, char *out, uint8_t cap) {
-    if (!out || cap == 0) {
-        return;
-    }
-    int value = ctx ? *static_cast<int *>(ctx) : 0;
-    unsigned int av = absUnsigned(value);
-    uint8_t pos = 0;
-    out[0] = '\\0';
-    if (value < 0) {
-        appendChar(out, cap, pos, '-');
-    }
-    appendInt(out, cap, pos, static_cast<int>(av / 100U));
-    appendChar(out, cap, pos, '.');
-    appendChar(out, cap, pos, static_cast<char>('0' + ((av % 100U) / 10U)));
-    appendChar(out, cap, pos, static_cast<char>('0' + (av % 10U)));
-    appendText(out, cap, pos, " V");
-}
-
-static void formatMm(void *ctx, char *out, uint8_t cap) {
-    formatIntUnit(ctx ? *static_cast<int *>(ctx) : 0, " mm", out, cap);
-}
-
-static void formatTempC(void *ctx, char *out, uint8_t cap) {
-    formatIntUnit(ctx ? *static_cast<int *>(ctx) : 0, " C", out, cap);
-}
-
-static void formatHz(void *ctx, char *out, uint8_t cap) {
-    formatIntUnit(ctx ? *static_cast<int *>(ctx) : 0, " Hz", out, cap);
-}
-
-static void formatFirmware(void *, char *out, uint8_t cap) {
-    if (!out || cap == 0) {
-        return;
-    }
-    uint8_t pos = 0;
-    out[0] = '\\0';
-    appendText(out, cap, pos, "v0.5.4");
-}
-
-static void formatUptime(void *ctx, char *out, uint8_t cap) {
-    if (!out || cap == 0) {
-        return;
-    }
-    int minutes = ctx ? *static_cast<int *>(ctx) : 0;
-    uint8_t pos = 0;
-    out[0] = '\\0';
-    appendInt(out, cap, pos, minutes / 60);
-    appendChar(out, cap, pos, 'h');
-    appendChar(out, cap, pos, ' ');
-    int rem = minutes % 60;
-    appendChar(out, cap, pos, static_cast<char>('0' + ((rem / 10) % 10)));
-    appendChar(out, cap, pos, static_cast<char>('0' + (rem % 10)));
-    appendChar(out, cap, pos, 'm');
-}`;
 }
 
 function loadModel() {
@@ -1935,9 +1656,7 @@ function decorateExpression(expr, item, depth) {
 
 function generateWasmBridgeCpp() {
   const menuName = safeCppIdentifier(model.projectName || "menu", "Menu");
-  return `#define MENU_MAX_LINE 96
-
-#include "BetterMenu.h"
+  return `#include "WebMenuCapture.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -1987,82 +1706,11 @@ ${generateSupportCode()}
 static menu_runtime_t runtime;
 static menu_event_t pendingEvent = menu_event(Choice_Invalid);
 
-struct captured_row_t {
-    uint8_t row;
-    uint8_t item_index;
-    uint8_t kind;
-    uint8_t entry_type;
-    uint8_t flags;
-    uint8_t editable;
-    char text[MENU_MAX_LINE];
-};
-
-static captured_row_t rows[8];
-static uint8_t rowCount = 0;
-static uint8_t visibleTop = 0;
-static uint8_t visibleTotal = 0;
-static uint8_t visibleWindow = 5;
-
-static void clearDisplay(void *) {
-    rowCount = 0;
-    visibleTop = 0;
-    visibleTotal = 0;
-    visibleWindow = 5;
-    for (uint8_t i = 0; i < 8; ++i) {
-        rows[i].editable = 0;
-        rows[i].text[0] = '\\0';
-    }
-}
-
-static void flushDisplay(void *) {
-}
-
-static void renderLine(void *ctx, menu_render_line_t const *line) {
-    if (!line || line->row >= 8) {
-        return;
-    }
-    menu_runtime_t *rt = static_cast<menu_runtime_t *>(ctx);
-    menu_cursor_t const *cur = (rt && rt->depth < MENU_MAX_STACK) ? &rt->stack[rt->depth] : 0;
-    captured_row_t &row = rows[line->row];
-    row.row = line->row;
-    row.item_index = line->item_index;
-    row.kind = line->kind;
-    row.entry_type = line->entry_type;
-    row.flags = line->flags;
-    row.editable = 0;
-    if (cur && line->kind == MENU_RENDER_ITEM) {
-        uint8_t total = menu_runtime_t::menu_count(*cur);
-        visibleTotal = menu_runtime_t::visible_count(*cur, total);
-        visibleWindow = visibleTotal < 5 ? visibleTotal : 5;
-        row.editable = menu_runtime_t::menu_int_has(*cur, line->item_index) ? 1 : 0;
-        if (line->row == 1) {
-            visibleTop = menu_runtime_t::raw_to_visible(*cur, total, line->item_index);
-        }
-    }
-    char const *src = line->text ? line->text : "";
-    uint8_t i = 0;
-    while (src[i] && i + 1 < MENU_MAX_LINE) {
-        row.text[i] = src[i];
-        ++i;
-    }
-    row.text[i] = '\\0';
-    if (line->row + 1 > rowCount) {
-        rowCount = static_cast<uint8_t>(line->row + 1);
-    }
-}
-
 static menu_event_t readEvent(void *) {
     menu_event_t event = pendingEvent;
     pendingEvent = menu_event(Choice_Invalid);
     return event;
 }
-
-static display_ops_t const WEB_DISPLAY_OPS = {
-    &clearDisplay,
-    0,
-    &flushDisplay,
-    &renderLine
-};
 
 static input_ops_t const WEB_INPUT_OPS = {
     0,
@@ -2077,11 +1725,11 @@ static input_ops_t const WEB_INPUT_OPS = {
 };
 
 static input_source_t webInput = make_input_source(0, &WEB_INPUT_OPS);
-static display_t webDisplay = make_display(60, 6, &runtime, &WEB_DISPLAY_OPS);
 static const auto ${menuName} =
 ${menuExpression(model.rootMenuId, 0)};
 
 extern "C" __attribute__((export_name("bm_init"))) void bm_init(void) {
+    display_t webDisplay = make_web_menu_capture_display(runtime, 60, 6);
     runtime = menu_runtime_t::make(${menuName}, webDisplay, webInput, false);
     runtime.set_show_title(true);
     runtime.set_show_breadcrumbs(true);
@@ -2103,256 +1751,50 @@ extern "C" __attribute__((export_name("bm_send_row"))) void bm_send_row(int row,
 }
 
 extern "C" __attribute__((export_name("bm_row_count"))) int bm_row_count(void) {
-    return rowCount;
+    return web_menu_capture_row_count();
 }
 
 extern "C" __attribute__((export_name("bm_row_kind"))) int bm_row_kind(int idx) {
-    return (idx >= 0 && idx < rowCount) ? rows[idx].kind : 0;
+    return web_menu_capture_row_kind(idx);
 }
 
 extern "C" __attribute__((export_name("bm_row_flags"))) int bm_row_flags(int idx) {
-    return (idx >= 0 && idx < rowCount) ? rows[idx].flags : 0;
+    return web_menu_capture_row_flags(idx);
 }
 
 extern "C" __attribute__((export_name("bm_row_entry_type"))) int bm_row_entry_type(int idx) {
-    return (idx >= 0 && idx < rowCount) ? rows[idx].entry_type : 0;
+    return web_menu_capture_row_entry_type(idx);
 }
 
 extern "C" __attribute__((export_name("bm_row_item_index"))) int bm_row_item_index(int idx) {
-    return (idx >= 0 && idx < rowCount) ? rows[idx].item_index : 255;
+    return web_menu_capture_row_item_index(idx);
 }
 
 extern "C" __attribute__((export_name("bm_row_editable"))) int bm_row_editable(int idx) {
-    return (idx >= 0 && idx < rowCount) ? rows[idx].editable : 0;
+    return web_menu_capture_row_editable(idx);
 }
 
 extern "C" __attribute__((export_name("bm_row_text_ptr"))) int bm_row_text_ptr(int idx) {
-    return (idx >= 0 && idx < rowCount) ? static_cast<int>(reinterpret_cast<uintptr_t>(rows[idx].text)) : 0;
+    char const *text = web_menu_capture_row_text(idx);
+    return text ? static_cast<int>(reinterpret_cast<uintptr_t>(text)) : 0;
 }
 
 extern "C" __attribute__((export_name("bm_visible_top"))) int bm_visible_top(void) {
-    return visibleTop;
+    return web_menu_capture_visible_top();
 }
 
 extern "C" __attribute__((export_name("bm_visible_total"))) int bm_visible_total(void) {
-    return visibleTotal;
+    return web_menu_capture_visible_total();
 }
 
 extern "C" __attribute__((export_name("bm_visible_window"))) int bm_visible_window(void) {
-    return visibleWindow;
+    return web_menu_capture_visible_window();
 }
 `;
 }
 
 function generateWebPackageFiles(bridgeSource) {
-  const assetFiles = {};
-  for (const asset of usedAssets(model)) {
-    if (asset.kind === "svg") {
-      assetFiles[`icons/${asset.safeName}.svg`] = asset.source;
-    }
-  }
-  return {
-    files: {
-      "bettermenu_wasm.cpp": bridgeSource,
-      "BetterMenu.h": "Copy the current repository BetterMenu.h beside bettermenu_wasm.cpp before compiling.",
-      "index.html": generatedWebIndex(),
-      "demo.js": generatedWebDemoJs(),
-      "styles.css": generatedWebCss(),
-      ...assetFiles
-    },
-    compile: {
-      local: "Use a WebAssembly-capable C++ compiler in the project or development environment to emit a freestanding wasm32 module with exported bm_* functions."
-    }
-  };
-}
-
-function generatedWebIndex() {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(model.projectName || "BetterMenu Web Demo")}</title>
-  <link rel="stylesheet" href="./styles.css">
-</head>
-<body>
-  <main class="shell">
-    <section>
-      <div id="menu" class="menu"></div>
-      <div class="controls">
-        <button data-choice="3">Up</button>
-        <button data-choice="4">Down</button>
-        <button data-choice="1">Left</button>
-        <button data-choice="2">Right</button>
-        <button data-choice="5">Select</button>
-        <button data-choice="6">Back</button>
-      </div>
-    </section>
-  </main>
-  <script type="module" src="./demo.js"></script>
-</body>
-</html>`;
-}
-
-function generatedWebDemoJs() {
-  const iconMap = Object.fromEntries(model.items.map((item) => {
-    const asset = assetForItem(item);
-    return [item.label, asset?.safeName || ""];
-  }).filter(([, key]) => key));
-  const contentMap = Object.fromEntries(model.items.map((item) => [
-    item.label,
-    [item.contentTitle || item.label, item.contentBody || "Generated from the structured BetterMenu model."]
-  ]));
-  return `const menu = document.querySelector("#menu");
-const icons = ${JSON.stringify(iconMap, null, 2)};
-const content = ${JSON.stringify(contentMap, null, 2)};
-let wasm;
-let memory;
-
-function readCString(ptr) {
-  const bytes = new Uint8Array(memory.buffer);
-  let end = ptr;
-  while (bytes[end] !== 0) end += 1;
-  return new TextDecoder().decode(bytes.subarray(ptr, end));
-}
-
-function parseLine(text) {
-  const clean = text.replace(/^>\\s*/, "").replace(/\\s+\\(edit\\)$/, "").trim();
-  const parts = clean.split(": ");
-  return {
-    label: parts[0] || clean,
-    value: parts.length > 1 ? parts.slice(1).join(": ") : ""
-  };
-}
-
-function iconUrl(label) {
-  const key = icons[label];
-  return key ? \`url("./icons/\${key}.svg")\` : "";
-}
-
-function render() {
-  menu.textContent = "";
-  for (let i = 0; i < wasm.bm_row_count(); i += 1) {
-    const row = document.createElement("button");
-    row.type = "button";
-    row.className = "row";
-    const parsed = parseLine(readCString(wasm.bm_row_text_ptr(i)));
-    if (wasm.bm_row_flags(i) & 1) row.classList.add("selected");
-    const icon = document.createElement("span");
-    icon.className = "icon";
-    const mask = iconUrl(parsed.label);
-    if (mask) icon.style.setProperty("--icon-url", mask);
-    const label = document.createElement("span");
-    label.className = "label";
-    label.textContent = parsed.label;
-    const value = document.createElement("span");
-    value.className = "value";
-    value.textContent = parsed.value;
-    row.append(icon, label, value);
-    row.addEventListener("click", () => {
-      wasm.bm_send_row(i, 1);
-      render();
-    });
-    menu.append(row);
-  }
-}
-
-async function init() {
-  const response = await fetch("./bettermenu_demo.wasm");
-  const result = await WebAssembly.instantiate(await response.arrayBuffer(), {});
-  wasm = result.instance.exports;
-  memory = wasm.memory;
-  wasm.bm_init();
-  render();
-}
-
-document.querySelectorAll("[data-choice]").forEach((button) => {
-  button.addEventListener("click", () => {
-    wasm.bm_send_choice(Number(button.dataset.choice));
-    render();
-  });
-});
-
-init().catch((error) => {
-  menu.textContent = String(error);
-});`;
-}
-
-function generatedWebCss() {
-  return `body {
-  margin: 0;
-  color: #edf2f7;
-  background: #10151c;
-  font: 14px/1.45 system-ui, sans-serif;
-}
-
-.shell {
-  width: min(760px, calc(100vw - 32px));
-  margin: 32px auto;
-}
-
-.menu {
-  display: grid;
-  gap: 8px;
-}
-
-button {
-  border: 1px solid #344559;
-  border-radius: 6px;
-  background: #111a24;
-  color: inherit;
-  padding: 9px 10px;
-}
-
-.row {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  text-align: left;
-}
-
-.row.selected {
-  border-color: #7fc7c0;
-  box-shadow: inset 4px 0 0 #7fc7c0;
-}
-
-.icon {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  color: #96a6b6;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-}
-
-.icon::before {
-  content: "";
-  width: 15px;
-  height: 15px;
-  background: currentColor;
-  -webkit-mask: var(--icon-url, none) center / contain no-repeat;
-  mask: var(--icon-url, none) center / contain no-repeat;
-}
-
-.label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.value {
-  color: #7ed39f;
-  font-variant-numeric: tabular-nums;
-}
-
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 16px;
-}`;
+  return createWebDomWasmPackage(model, bridgeSource);
 }
 
 function generateAdafruitAssetHeader() {
