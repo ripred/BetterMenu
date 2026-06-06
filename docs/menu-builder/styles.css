@@ -363,6 +363,32 @@ hr {
   color: var(--muted);
 }
 
+.status-widget-editor {
+  display: grid;
+  gap: 12px;
+}
+
+.status-widget-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.status-widget-card {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #111923;
+  padding: 12px;
+}
+
+.status-widget-card.disabled {
+  opacity: 0.68;
+}
+
+.status-widget-card.disabled input:not([type="checkbox"]) {
+  cursor: not-allowed;
+}
+
 .preview-shell {
   min-height: 500px;
 }
@@ -993,7 +1019,8 @@ hr {
   .builder-grid,
   .preview-grid,
   .snippet-grid,
-  .assets-grid {
+  .assets-grid,
+  .status-widget-grid {
     grid-template-columns: 1fr;
   }
 }

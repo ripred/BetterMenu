@@ -13,6 +13,13 @@ import {
   profileInstructions,
   targetProfileById
 } from "../docs/menu-builder/target_profiles.mjs";
+import {
+  activeStatusWidgets,
+  defaultStatusWidget,
+  firstStatusWidget,
+  normalizeStatusWidgets,
+  statusWidgetDiagnostics
+} from "../docs/menu-builder/status_widgets.mjs";
 
 assert.equal(targetProfileById("arduino-serial").capabilities.text, true);
 assert.equal(targetProfileById("adafruit-ili9341-320x240-spi").capabilities.bitmap, true);
@@ -90,3 +97,27 @@ assert.throws(() => sanitizeSvgSource(`<svg><foreignObject></foreignObject></svg
 assert.equal(safeAssetName("Battery % Icon"), "Battery_Icon");
 assert.equal(makeSvgAsset("dot", safeSvg).safeName, "dot");
 assert.ok(defaultRoverAssets().some((asset) => asset.key === "battery"));
+
+const normalizedWidgets = normalizeStatusWidgets([
+  { type: "chip", sourceSymbol: "armed", falseLabel: "SAFE", extraField: "kept" },
+  { type: "battery", sourceSymbol: "battCentiV", min: "900", max: "1260" },
+  { id: "secondary-chip", type: "chip", sourceSymbol: "other" }
+]);
+assert.equal(normalizedWidgets[0].id, "state-status");
+assert.equal(normalizedWidgets[0].extraField, "kept");
+assert.equal(normalizedWidgets[0].trueLabel, "ARMED");
+assert.equal(normalizedWidgets[1].min, 900);
+assert.equal(normalizedWidgets[1].max, 1260);
+assert.equal(firstStatusWidget(normalizedWidgets, "battery").sourceSymbol, "battCentiV");
+assert.equal(activeStatusWidgets(normalizedWidgets).length, 3);
+assert.match(statusWidgetDiagnostics(normalizedWidgets).join("\n"), /Only the first active Chip status widget is rendered/);
+
+const disabledChip = normalizeStatusWidgets([
+  { ...defaultStatusWidget("chip"), enabled: false },
+  { type: "battery", sourceSymbol: "", min: 10, max: 10 }
+]);
+assert.equal(firstStatusWidget(disabledChip, "chip"), null);
+assert.equal(firstStatusWidget(disabledChip, "chip", { enabledOnly: false }).enabled, false);
+assert.match(statusWidgetDiagnostics(disabledChip).join("\n"), /Battery status widget needs a source symbol/);
+assert.match(statusWidgetDiagnostics(disabledChip).join("\n"), /Battery status widget max must be greater than min/);
+assert.deepEqual(JSON.parse(JSON.stringify(normalizedWidgets))[0].extraField, "kept");

@@ -1,3 +1,5 @@
+import { activeStatusWidgets } from "./status_widgets.mjs";
+
 const SVG_PREFIX = "data:image/svg+xml;charset=utf-8,";
 
 export const BUILTIN_ICON_SVGS = {
@@ -107,7 +109,7 @@ export function usedAssets(model) {
   for (const item of model.items || []) {
     if (item.iconAssetId) used.add(item.iconAssetId);
   }
-  for (const widget of model.statusWidgets || []) {
+  for (const widget of activeStatusWidgets(model.statusWidgets)) {
     if (widget.assetId) used.add(widget.assetId);
   }
   return (model.assets || []).filter((asset) => used.has(asset.id));

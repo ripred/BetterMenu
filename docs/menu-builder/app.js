@@ -18,6 +18,13 @@ import {
   sanitizeSvgSource,
   usedAssets
 } from "./asset_utils.mjs";
+import {
+  activeStatusWidgets,
+  defaultStatusWidget,
+  firstStatusWidget,
+  normalizeStatusWidgets,
+  statusWidgetDiagnostics
+} from "./status_widgets.mjs";
 
 const storageKey = "bettermenu.menuBuilder.project.v3";
 
@@ -103,7 +110,8 @@ const els = {
   targetAnsiColor: document.querySelector("#target-ansi-color"),
   targetAnsiHideCursor: document.querySelector("#target-ansi-hide-cursor"),
   targetAnsiClearOnBegin: document.querySelector("#target-ansi-clear-on-begin"),
-  targetSummary: document.querySelector("#target-summary")
+  targetSummary: document.querySelector("#target-summary"),
+  statusWidgetEditor: document.querySelector("#status-widget-editor")
 };
 
 let selectedMenuId = "root";
@@ -554,7 +562,7 @@ function normalizeModel(input) {
     icons: input?.icons || {},
     content: input?.content || {},
     assets: Array.isArray(input?.assets) ? input.assets : base.assets,
-    statusWidgets: Array.isArray(input?.statusWidgets) ? input.statusWidgets : base.statusWidgets,
+    statusWidgets: normalizeStatusWidgets(Array.isArray(input?.statusWidgets) ? input.statusWidgets : base.statusWidgets),
     targetSettings: normalizeTargetSettings(input?.targetSettings || base.targetSettings),
     previewSettings: {
       ...base.previewSettings,
@@ -779,7 +787,7 @@ function assetUsageCounts() {
   for (const item of model.items || []) {
     if (item.iconAssetId) counts[item.iconAssetId] = (counts[item.iconAssetId] || 0) + 1;
   }
-  for (const widget of model.statusWidgets || []) {
+  for (const widget of activeStatusWidgets(model.statusWidgets)) {
     if (widget.assetId) counts[widget.assetId] = (counts[widget.assetId] || 0) + 1;
   }
   return counts;
@@ -798,6 +806,7 @@ function renderAll() {
   renderItemEditor();
   renderAssetManager();
   renderTargetSettings();
+  renderStatusWidgetEditor();
   renderPreview();
   renderOutput();
   renderInstructions();
@@ -994,6 +1003,56 @@ function renderTargetSettings() {
       </ul>
     </section>
   `;
+}
+
+function renderStatusWidgetEditor() {
+  if (!els.statusWidgetEditor) return;
+  const chip = firstStatusWidget(model.statusWidgets, "chip", { enabledOnly: false }) || defaultStatusWidget("chip");
+  const battery = firstStatusWidget(model.statusWidgets, "battery", { enabledOnly: false }) || defaultStatusWidget("battery");
+  const chipEnabled = Boolean(firstStatusWidget(model.statusWidgets, "chip"));
+  const batteryEnabled = Boolean(firstStatusWidget(model.statusWidgets, "battery"));
+  els.statusWidgetEditor.innerHTML = `
+    <div class="status-widget-grid">
+      ${statusWidgetCardHtml("chip", "Chip", chip, chipEnabled, [
+        ["label", "Label", "text"],
+        ["sourceSymbol", "Source symbol", "text"],
+        ["falseLabel", "False label", "text"],
+        ["trueLabel", "True label", "text"]
+      ])}
+      ${statusWidgetCardHtml("battery", "Battery", battery, batteryEnabled, [
+        ["label", "Label", "text"],
+        ["sourceSymbol", "Source symbol", "text"],
+        ["min", "Min", "number"],
+        ["max", "Max", "number"]
+      ])}
+    </div>
+  `;
+}
+
+function statusWidgetCardHtml(type, title, widget, enabled, fields) {
+  return `<article class="status-widget-card${enabled ? "" : " disabled"}">
+    <div class="panel-heading">
+      <div>
+        <p class="panel-label">Status widget</p>
+        <h3>${escapeHtml(title)}</h3>
+      </div>
+      <label class="checkline">
+        <input type="checkbox" data-status-enabled="${escapeAttr(type)}" ${enabled ? "checked" : ""}>
+        Enabled
+      </label>
+    </div>
+    <div class="form-grid">
+      ${fields.map(([prop, label, inputType]) => statusWidgetFieldHtml(type, prop, label, widget[prop], inputType, !enabled)).join("")}
+    </div>
+  </article>`;
+}
+
+function statusWidgetFieldHtml(type, prop, label, value, inputType, disabled) {
+  const id = `status-${type}-${prop}`;
+  return `<div class="field">
+    <label for="${id}">${escapeHtml(label)}</label>
+    <input id="${id}" data-status-type="${escapeAttr(type)}" data-status-prop="${escapeAttr(prop)}" type="${escapeAttr(inputType)}" value="${escapeAttr(value ?? "")}" ${disabled ? "disabled" : ""}>
+  </div>`;
 }
 
 function typeFieldsHtml(item) {
@@ -1338,8 +1397,8 @@ function previewTop(total, selected, windowSize) {
 }
 
 function previewStatusHtml() {
-  const armedWidget = model.statusWidgets.find((widget) => widget.type === "chip");
-  const batteryWidget = model.statusWidgets.find((widget) => widget.type === "battery");
+  const armedWidget = firstStatusWidget(model.statusWidgets, "chip");
+  const batteryWidget = firstStatusWidget(model.statusWidgets, "battery");
   const parts = [];
   if (armedWidget) {
     const armed = Boolean(preview.values[armedWidget.sourceSymbol]);
@@ -2615,7 +2674,7 @@ ${lines.join("\n") || "    (void)label;"}
 }
 
 function generateAdafruitBatteryCode() {
-  const widget = model.statusWidgets.find((entry) => entry.type === "battery");
+  const widget = firstStatusWidget(model.statusWidgets, "battery");
   if (!widget?.sourceSymbol) {
     return "    return 100;";
   }
@@ -2629,8 +2688,8 @@ function generateAdafruitBatteryCode() {
 }
 
 function generateAdafruitHeaderStatusCode(displayObject) {
-  const chip = model.statusWidgets.find((entry) => entry.type === "chip");
-  const battery = model.statusWidgets.find((entry) => entry.type === "battery");
+  const chip = firstStatusWidget(model.statusWidgets, "chip");
+  const battery = firstStatusWidget(model.statusWidgets, "battery");
   const lines = [];
   if (battery) {
     lines.push(`    int pct = batteryPercent();
@@ -2669,6 +2728,7 @@ function collectDiagnostics() {
   const profile = targetProfileById(model.targetSettings.profileId);
   const assetKeys = new Set();
   const usedAssetList = usedAssets(model);
+  const renderedStatusWidgets = activeStatusWidgets(model.statusWidgets);
   if (model.version !== 2) diagnostics.push("Project model will be migrated to version 2 on save.");
   if (!profile.capabilities.graphical && usedAssetList.length) {
     diagnostics.push(`${profile.label} is a text target; assigned icons and graphical assets are ignored for this output.`);
@@ -2689,8 +2749,19 @@ function collectDiagnostics() {
       diagnostics.push(`Asset ${asset.key || asset.id} is used by the Adafruit target but has not been RGB565 encoded yet.`);
     }
   }
-  if (profile.capabilities.statusWidgets === false && model.statusWidgets.length) {
+  diagnostics.push(...statusWidgetDiagnostics(model.statusWidgets));
+  if (profile.capabilities.statusWidgets === false && renderedStatusWidgets.length) {
     diagnostics.push(`${profile.label} does not render graphical status widgets.`);
+  }
+  for (const widget of renderedStatusWidgets.filter((entry) => entry.type === "chip" || entry.type === "battery")) {
+    const symbol = String(widget.sourceSymbol || "").trim();
+    const label = `${widget.label || widget.type} status widget`;
+    if (!symbol) continue;
+    if (!isCppIdentifier(symbol)) {
+      diagnostics.push(`${label} has an invalid source symbol: ${symbol}.`);
+    } else if (!model.generateStubs && !hasSymbol(supportSource, symbol)) {
+      diagnostics.push(`${label} references source symbol ${symbol}, but it is not in the support snippets and generated stubs are off.`);
+    }
   }
   if (profile.id === "adafruit-ili9341-320x240-spi") {
     if (!model.targetSettings.width || !model.targetSettings.height) diagnostics.push("Adafruit ILI9341 target needs non-zero width and height.");
@@ -3205,6 +3276,50 @@ function uniqueAssetId(baseId) {
   return id;
 }
 
+function ensureStatusWidget(type) {
+  let widget = firstStatusWidget(model.statusWidgets, type, { enabledOnly: false });
+  if (!widget) {
+    widget = defaultStatusWidget(type);
+    model.statusWidgets.push(widget);
+  }
+  widget.enabled = true;
+  model.statusWidgets = normalizeStatusWidgets(model.statusWidgets);
+  return firstStatusWidget(model.statusWidgets, type, { enabledOnly: false });
+}
+
+function setStatusWidgetEnabled(type, enabled) {
+  if (enabled) {
+    ensureStatusWidget(type);
+  } else {
+    for (const widget of model.statusWidgets) {
+      if (widget.type === type) widget.enabled = false;
+    }
+  }
+  model.statusWidgets = normalizeStatusWidgets(model.statusWidgets);
+  resetPreviewOutput();
+  renderAll();
+}
+
+function handleStatusWidgetInput(event) {
+  const enabledToggle = event.target.closest("[data-status-enabled]");
+  if (enabledToggle) {
+    setStatusWidgetEnabled(enabledToggle.dataset.statusEnabled, enabledToggle.checked);
+    return;
+  }
+  const field = event.target.closest("[data-status-prop]");
+  if (!field) return;
+  const widget = ensureStatusWidget(field.dataset.statusType);
+  if (!widget) return;
+  const prop = field.dataset.statusProp;
+  widget[prop] = field.type === "number" ? numberOr(field.value, 0) : field.value;
+  model.statusWidgets = normalizeStatusWidgets(model.statusWidgets);
+  resetPreviewOutput();
+  renderPreview();
+  renderOutput();
+  renderInstructions();
+  saveModel();
+}
+
 function updateTargetSetting(prop, value) {
   if (["width", "height", "rotation", "originRow", "originCol", "serialBaud"].includes(prop)) {
     model.targetSettings[prop] = numberOr(value, 0);
@@ -3268,6 +3383,8 @@ function installEventHandlers() {
   });
   els.itemEditor.addEventListener("input", handleEditorInput);
   els.itemEditor.addEventListener("change", handleEditorInput);
+  els.statusWidgetEditor.addEventListener("input", handleStatusWidgetInput);
+  els.statusWidgetEditor.addEventListener("change", handleStatusWidgetInput);
   els.addItem.addEventListener("click", addItem);
   els.deleteItem.addEventListener("click", deleteSelectedItem);
   els.assetList.addEventListener("click", (event) => {
