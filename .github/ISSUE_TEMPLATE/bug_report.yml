@@ -1,0 +1,73 @@
+name: Bug report
+description: Report a reproducible BetterMenu bug.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. A minimal sketch or builder JSON export is the fastest path to a fix.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Core menu runtime
+        - Serial or stdio adapter
+        - Button/input adapter
+        - Display adapter
+        - Example sketch
+        - BetterMenu Builder
+        - Documentation
+        - Packaging or CI
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include BetterMenu version or commit, board/FQBN, Arduino core, compiler, and relevant display/input libraries.
+      placeholder: |
+        BetterMenu commit:
+        Board/FQBN:
+        Arduino IDE or CLI:
+        Arduino core:
+        Display/input libraries:
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Include a minimal sketch, generated output, JSON export, or steps from an included example.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Paste compiler output, serial output, browser console messages, or screenshots when useful.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues first.
+          required: true
+        - label: I reduced this to the smallest sketch or builder export I can.
+          required: false

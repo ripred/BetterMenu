@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose a BetterMenu feature, adapter, example, or builder improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to build, and what is awkward or missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the API, example, adapter, builder profile, or generated output you want.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Core menu declaration API
+        - Runtime behavior
+        - Input adapter
+        - Display adapter
+        - Example sketch
+        - BetterMenu Builder
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints
+      description: Mention board limits, display library, memory, timing, or compatibility constraints.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What have you tried or ruled out?

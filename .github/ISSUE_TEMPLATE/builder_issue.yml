@@ -1,0 +1,52 @@
+name: Builder or generated output issue
+description: Report a problem with the static BetterMenu Builder or generated files.
+title: "[Builder]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What did the builder do incorrectly?
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Builder URL
+      placeholder: https://ripred.github.io/BetterMenu/menu-builder/
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and OS
+      placeholder: Chrome on macOS, Firefox on Windows, Safari on iOS, etc.
+    validations:
+      required: true
+  - type: input
+    id: profile
+    attributes:
+      label: Target profile
+      placeholder: Arduino ANSI Serial, Adafruit ILI9341, TFT_eSPI CYD, U8g2 128x64, etc.
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include menu edits, imported JSON, target settings, and export tab used.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Generated output or diagnostics
+      description: Paste the relevant generated code, diagnostics, or console error.
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I tried a hard refresh or cache-busting reload.
+          required: false
+        - label: I can reproduce this from a fresh builder load.
+          required: false
