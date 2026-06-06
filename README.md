@@ -13,10 +13,6 @@ BetterMenu is a header-only, non-blocking, declarative menu system for Arduino-c
 
 The menu tree is defined in one expression. Submenus are stored inline by value, so changing menu structure, labels, values, choices, and actions does not require keeping parallel arrays, enums, callback tables, or hand-maintained parent/child wiring in sync.
 
-## Online Builder
-
-This BetterMenu repository itself now includes a static browser-based builder for drafting menu declarations and exporting starter code for Arduino Serial, ANSI Serial terminals, desktop C++ stdio, WebAssembly/DOM, Adafruit_GFX, TFT_eSPI, U8g2, and character LCD adapter projects: [Open the BetterMenu Builder](https://ripred.github.io/BetterMenu/menu-builder/)
-
 ## Philosophy
 
 The main point of BetterMenu is that a menu should be declared once. The place where you define the menu is also where every attribute, label, nested submenu, editable value, fixed choice, and action lives. That single declaration is the source of truth for the whole menu system, so changing or re-arranging the menu during fast development means changing one coherent block of code, not chasing matching updates through several files or several disconnected sections of a sketch.
@@ -102,6 +98,10 @@ The convenience helpers with no explicit context use fixed internal singleton st
 - `examples/CYDAuroraPanel`: 320x240 CYD/ESP32 graphical menu using a custom `render_line` adapter and TFT_eSPI. The sketch uses Serial keys for input so the display adapter stays independent of any one touch-controller wiring.
 - `examples/CYDRoverConsole`: denser 320x240 CYD/ESP32 graphical menu that passes runtime context into the display adapter to draw a proportional faux scrollbar and richer row states.
 - `examples/WebAssemblyRoverConsole`: notes for the hosted WebAssembly/DOM adapter demo in `docs/web-adapter`.
+
+## Online Builder
+
+This BetterMenu repository itself now includes a static browser-based builder for drafting menu declarations and exporting starter code for Arduino Serial, ANSI Serial terminals, desktop C++ stdio, WebAssembly/DOM, Adafruit_GFX, TFT_eSPI, U8g2, and character LCD adapter projects: [Open the BetterMenu Builder](https://ripred.github.io/BetterMenu/menu-builder/)
 
 ## Full Documentation
 
