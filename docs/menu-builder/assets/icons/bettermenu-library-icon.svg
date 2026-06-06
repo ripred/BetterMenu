@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">BetterMenu library icon</title>
+  <defs>
+    <linearGradient id="shell" x1="11" y1="6" x2="53" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#162633"/>
+      <stop offset="1" stop-color="#0b141d"/>
+    </linearGradient>
+    <linearGradient id="selected" x1="15" y1="23" x2="49" y2="34" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#76dedb"/>
+      <stop offset="1" stop-color="#43bfc3"/>
+    </linearGradient>
+  </defs>
+  <rect x="7" y="5" width="50" height="54" rx="8" fill="url(#shell)"/>
+  <rect x="10" y="8" width="44" height="48" rx="6" fill="none" stroke="#7fc7c0" stroke-width="2.2"/>
+  <rect x="16" y="15" width="32" height="8" rx="4" fill="#20303d" stroke="#536271" stroke-width="1.2"/>
+  <circle cx="22" cy="19" r="2.2" fill="#8793a0"/>
+  <path d="M28 19h14" stroke="#9aa6b2" stroke-width="2" stroke-linecap="round"/>
+  <rect x="14" y="26" width="36" height="9" rx="4.5" fill="url(#selected)" stroke="#a4f4ec" stroke-width="1.2"/>
+  <circle cx="22" cy="30.5" r="2.4" fill="#f2fffd"/>
+  <path d="M28 30.5h17" stroke="#f2fffd" stroke-width="2.2" stroke-linecap="round"/>
+  <rect x="16" y="39" width="32" height="8" rx="4" fill="#20303d" stroke="#536271" stroke-width="1.2"/>
+  <circle cx="22" cy="43" r="2.2" fill="#8793a0"/>
+  <path d="M28 43h13" stroke="#9aa6b2" stroke-width="2" stroke-linecap="round"/>
+</svg>

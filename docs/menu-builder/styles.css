@@ -130,18 +130,12 @@ a {
 }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border: 1px solid var(--accent);
-  border-radius: 7px;
-  color: #101923;
-  background: var(--accent);
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0;
-  box-shadow: 0 0 0 4px rgb(127 199 192 / 0.12);
+  display: block;
+  width: 46px;
+  height: 46px;
+  border-radius: 9px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 0.35rem rgb(127 199 192 / 0.18));
 }
 
 .brand-lockup strong,
