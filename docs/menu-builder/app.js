@@ -432,7 +432,7 @@ static void formatFirmware(void *, char *out, uint8_t cap) {
     }
     uint8_t pos = 0;
     out[0] = '\\0';
-    appendText(out, cap, pos, "v0.5.2");
+    appendText(out, cap, pos, "v0.5.3");
 }
 
 static void formatUptime(void *ctx, char *out, uint8_t cap) {
@@ -1482,7 +1482,7 @@ function formatPreviewValue(item, value) {
   if (symbol === "formatMm") return `${value} mm`;
   if (symbol === "formatTempC") return `${value} C`;
   if (symbol === "formatHz") return `${value} Hz`;
-  if (symbol === "formatFirmware") return "v0.5.2";
+  if (symbol === "formatFirmware") return "v0.5.3";
   if (symbol === "formatUptime") return `${Math.floor(value / 60)}h ${String(value % 60).padStart(2, "0")}m`;
   return String(value);
 }
