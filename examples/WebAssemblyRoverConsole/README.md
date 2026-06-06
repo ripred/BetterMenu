@@ -6,8 +6,11 @@ Live demo: https://ripred.github.io/BetterMenu/web-adapter/
 
 Local source:
 
-- `docs/web-adapter/bettermenu_wasm.cpp` builds the BetterMenu bridge.
-- `docs/web-adapter/demo.js` loads the `.wasm`, sends BetterMenu choices, and renders captured rows into the DOM.
+- `docs/web-adapter/bettermenu_wasm.cpp` defines the menu, backing values, callbacks, and exported Wasm functions.
+- `docs/web-adapter/WebMenuCapture.h` and `docs/web-adapter/WebMenuCapture.cpp` capture BetterMenu render rows for the browser.
+- `docs/web-adapter/web_menu_dom_adapter.js` loads the `.wasm`, sends BetterMenu choices, and renders captured rows into the DOM.
+- `docs/web-adapter/rover_console_data.js` maps row labels to demo icons and content.
+- `docs/web-adapter/demo.js` wires the RoverConsole data into the DOM adapter.
 - `docs/web-adapter/styles.css` owns the browser-side RoverConsole skin.
 
 To rebuild locally:

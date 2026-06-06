@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 usage() {
   cat <<'EOF'
-Builds bettermenu_demo.wasm from bettermenu_wasm.cpp.
+Builds bettermenu_demo.wasm from the WebAssembly adapter sources.
 
 Requirements:
   - A C++ compiler driver that supports --target=wasm32 and WebAssembly linking.
@@ -72,7 +72,8 @@ fi
   -Wl,--export=bm_visible_total \
   -Wl,--export=bm_visible_window \
   -o bettermenu_demo.wasm \
-  bettermenu_wasm.cpp
+  bettermenu_wasm.cpp \
+  WebMenuCapture.cpp
 
 if [ -n "$WASM_STRIP" ]; then
   "$WASM_STRIP" bettermenu_demo.wasm

@@ -1,6 +1,4 @@
-#define MENU_MAX_LINE 96
-
-#include "../../BetterMenu.h"
+#include "WebMenuCapture.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -68,22 +66,6 @@ static int brightnessPct = 80;
 static int themeSel = 0;
 static bool screenFlip = false;
 static int uptimeMin = 154;
-
-struct captured_row_t {
-    uint8_t row;
-    uint8_t item_index;
-    uint8_t kind;
-    uint8_t entry_type;
-    uint8_t flags;
-    uint8_t editable;
-    char text[MENU_MAX_LINE];
-};
-
-static captured_row_t rows[8];
-static uint8_t rowCount = 0;
-static uint8_t visibleTop = 0;
-static uint8_t visibleTotal = 0;
-static uint8_t visibleWindow = 5;
 
 static void action(void) {
 }
@@ -256,69 +238,11 @@ static void formatUptime(void *ctx, char *out, uint8_t cap) {
     appendChar(out, cap, pos, 'm');
 }
 
-static void clearDisplay(void *) {
-    rowCount = 0;
-    visibleTop = 0;
-    visibleTotal = 0;
-    visibleWindow = 5;
-    for (uint8_t i = 0; i < 8; ++i) {
-        rows[i].editable = 0;
-        rows[i].text[0] = '\0';
-    }
-}
-
-static void flushDisplay(void *) {
-}
-
-static void renderLine(void *ctx, menu_render_line_t const *line) {
-    if (!line || line->row >= 8) {
-        return;
-    }
-    menu_runtime_t *rt = static_cast<menu_runtime_t *>(ctx);
-    menu_cursor_t const *cur = (rt && rt->depth < MENU_MAX_STACK) ? &rt->stack[rt->depth] : 0;
-
-    captured_row_t &row = rows[line->row];
-    row.row = line->row;
-    row.item_index = line->item_index;
-    row.kind = line->kind;
-    row.entry_type = line->entry_type;
-    row.flags = line->flags;
-    row.editable = 0;
-
-    if (cur && line->kind == MENU_RENDER_ITEM) {
-        uint8_t total = menu_runtime_t::menu_count(*cur);
-        visibleTotal = menu_runtime_t::visible_count(*cur, total);
-        visibleWindow = visibleTotal < 5 ? visibleTotal : 5;
-        row.editable = menu_runtime_t::menu_int_has(*cur, line->item_index) ? 1 : 0;
-        if (line->row == 1) {
-            visibleTop = menu_runtime_t::raw_to_visible(*cur, total, line->item_index);
-        }
-    }
-
-    char const *src = line->text ? line->text : "";
-    uint8_t i = 0;
-    while (src[i] && i + 1 < MENU_MAX_LINE) {
-        row.text[i] = src[i];
-        ++i;
-    }
-    row.text[i] = '\0';
-    if (line->row + 1 > rowCount) {
-        rowCount = static_cast<uint8_t>(line->row + 1);
-    }
-}
-
 static menu_event_t readEvent(void *) {
     menu_event_t event = pendingEvent;
     pendingEvent = menu_event(Choice_Invalid);
     return event;
 }
-
-static display_ops_t const WEB_DISPLAY_OPS = {
-    &clearDisplay,
-    0,
-    &flushDisplay,
-    &renderLine
-};
 
 static input_ops_t const WEB_INPUT_OPS = {
     0,
@@ -333,7 +257,6 @@ static input_ops_t const WEB_INPUT_OPS = {
 };
 
 static input_source_t webInput = make_input_source(0, &WEB_INPUT_OPS);
-static display_t webDisplay = make_display(60, 6, &runtime, &WEB_DISPLAY_OPS);
 
 extern "C" __attribute__((export_name("bm_init"))) void bm_init(void) {
     auto pidMenu =
@@ -389,6 +312,7 @@ extern "C" __attribute__((export_name("bm_init"))) void bm_init(void) {
             ITEM_MENU("System", systemMenu)
         );
 
+    display_t webDisplay = make_web_menu_capture_display(runtime, 60, 6);
     runtime = menu_runtime_t::make(rootMenu, webDisplay, webInput, false);
     runtime.set_show_title(true);
     runtime.set_show_breadcrumbs(true);
@@ -410,31 +334,32 @@ extern "C" __attribute__((export_name("bm_send_row"))) void bm_send_row(int row,
 }
 
 extern "C" __attribute__((export_name("bm_row_count"))) int bm_row_count(void) {
-    return rowCount;
+    return web_menu_capture_row_count();
 }
 
 extern "C" __attribute__((export_name("bm_row_kind"))) int bm_row_kind(int idx) {
-    return (idx >= 0 && idx < rowCount) ? rows[idx].kind : 0;
+    return web_menu_capture_row_kind(idx);
 }
 
 extern "C" __attribute__((export_name("bm_row_flags"))) int bm_row_flags(int idx) {
-    return (idx >= 0 && idx < rowCount) ? rows[idx].flags : 0;
+    return web_menu_capture_row_flags(idx);
 }
 
 extern "C" __attribute__((export_name("bm_row_entry_type"))) int bm_row_entry_type(int idx) {
-    return (idx >= 0 && idx < rowCount) ? rows[idx].entry_type : 0;
+    return web_menu_capture_row_entry_type(idx);
 }
 
 extern "C" __attribute__((export_name("bm_row_item_index"))) int bm_row_item_index(int idx) {
-    return (idx >= 0 && idx < rowCount) ? rows[idx].item_index : 255;
+    return web_menu_capture_row_item_index(idx);
 }
 
 extern "C" __attribute__((export_name("bm_row_editable"))) int bm_row_editable(int idx) {
-    return (idx >= 0 && idx < rowCount) ? rows[idx].editable : 0;
+    return web_menu_capture_row_editable(idx);
 }
 
 extern "C" __attribute__((export_name("bm_row_text_ptr"))) int bm_row_text_ptr(int idx) {
-    return (idx >= 0 && idx < rowCount) ? static_cast<int>(reinterpret_cast<uintptr_t>(rows[idx].text)) : 0;
+    char const *text = web_menu_capture_row_text(idx);
+    return text ? static_cast<int>(reinterpret_cast<uintptr_t>(text)) : 0;
 }
 
 extern "C" __attribute__((export_name("bm_battery_centivolts"))) int bm_battery_centivolts(void) {
@@ -457,13 +382,13 @@ extern "C" __attribute__((export_name("bm_armed"))) int bm_armed(void) {
 }
 
 extern "C" __attribute__((export_name("bm_visible_top"))) int bm_visible_top(void) {
-    return visibleTop;
+    return web_menu_capture_visible_top();
 }
 
 extern "C" __attribute__((export_name("bm_visible_total"))) int bm_visible_total(void) {
-    return visibleTotal;
+    return web_menu_capture_visible_total();
 }
 
 extern "C" __attribute__((export_name("bm_visible_window"))) int bm_visible_window(void) {
-    return visibleWindow;
+    return web_menu_capture_visible_window();
 }
