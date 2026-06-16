@@ -1,8 +1,8 @@
 # <img src="docs/menu-builder/assets/icons/bettermenu-library-icon.svg" width="38" height="38" align="absmiddle" alt=""> BetterMenu
 
-[![Arduino CI](https://github.com/ripred/BetterMenu/workflows/Arduino%20CI/badge.svg)](https://github.com/ripred/BetterMenu/actions/workflows/arduino_test_runner.yml)
-[![Arduino-lint](https://github.com/ripred/BetterMenu/actions/workflows/arduino-lint.yml/badge.svg)](https://github.com/ripred/BetterMenu/actions/workflows/arduino-lint.yml)
-[![JSON check](https://github.com/ripred/BetterMenu/actions/workflows/jsoncheck.yml/badge.svg)](https://github.com/ripred/BetterMenu/actions/workflows/jsoncheck.yml)
+[![Arduino CI](https://github.com/ripred/BetterMenu/actions/workflows/arduino_test_runner.yml/badge.svg?branch=main)](https://github.com/ripred/BetterMenu/actions/workflows/arduino_test_runner.yml?query=branch%3Amain)
+[![Arduino-lint](https://github.com/ripred/BetterMenu/actions/workflows/arduino-lint.yml/badge.svg?branch=main)](https://github.com/ripred/BetterMenu/actions/workflows/arduino-lint.yml?query=branch%3Amain)
+[![JSON check](https://github.com/ripred/BetterMenu/actions/workflows/jsoncheck.yml/badge.svg?branch=main)](https://github.com/ripred/BetterMenu/actions/workflows/jsoncheck.yml?query=branch%3Amain)
 ![code size:](https://img.shields.io/github/languages/code-size/ripred/bettermenu.svg)
 [![Arduino Library Manager](https://www.ardu-badge.com/badge/BetterMenu.svg)](https://www.ardu-badge.com/BetterMenu)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ripred/BetterMenu/blob/main/LICENSE)
