@@ -3,11 +3,10 @@
 [![Arduino CI](https://github.com/ripred/BetterMenu/actions/workflows/arduino_test_runner.yml/badge.svg?branch=main)](https://github.com/ripred/BetterMenu/actions/workflows/arduino_test_runner.yml?query=branch%3Amain)
 [![Arduino-lint](https://github.com/ripred/BetterMenu/actions/workflows/arduino-lint.yml/badge.svg?branch=main)](https://github.com/ripred/BetterMenu/actions/workflows/arduino-lint.yml?query=branch%3Amain)
 [![JSON check](https://github.com/ripred/BetterMenu/actions/workflows/jsoncheck.yml/badge.svg?branch=main)](https://github.com/ripred/BetterMenu/actions/workflows/jsoncheck.yml?query=branch%3Amain)
-![code size:](https://img.shields.io/github/languages/code-size/ripred/bettermenu.svg)
 [![Arduino Library Manager](https://www.ardu-badge.com/badge/BetterMenu.svg)](https://www.ardu-badge.com/BetterMenu)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ripred/BetterMenu/blob/main/LICENSE)
-[![Stars](https://img.shields.io/github/stars/ripred/BetterMenu.svg?style=flat-square&colorB=4183c4)](https://github.com/ripred/BetterMenu)
-[![Forks](https://img.shields.io/github/forks/ripred/BetterMenu.svg?style=flat-square&colorB=4183c4)](https://github.com/ripred/BetterMenu)
+[![Stars](https://badgen.net/github/stars/ripred/BetterMenu?color=4183c4)](https://github.com/ripred/BetterMenu/stargazers)
+[![Forks](https://badgen.net/github/forks/ripred/BetterMenu?color=4183c4)](https://github.com/ripred/BetterMenu/forks)
 
 BetterMenu is a header-only, non-blocking, declarative menu system for Arduino-class and other production embedded targets.
 
