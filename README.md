@@ -8,6 +8,8 @@
 [![Stars](https://badgen.net/github/stars/ripred/BetterMenu?color=4183c4)](https://github.com/ripred/BetterMenu/stargazers)
 [![Forks](https://badgen.net/github/forks/ripred/BetterMenu?color=4183c4)](https://github.com/ripred/BetterMenu/forks)
 
+[![GitHub release](https://flat.badgen.net/github/release/ripred/BetterMenu)](https://github.com/ripred/BetterMenu/releases/latest)
+
 BetterMenu is a header-only, non-blocking, declarative menu system for Arduino-class and other production embedded targets.
 
 The menu tree is defined in one expression. Submenus are stored inline by value, so changing menu structure, labels, values, choices, and actions does not require keeping parallel arrays, enums, callback tables, or hand-maintained parent/child wiring in sync.
