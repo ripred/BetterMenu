@@ -6,7 +6,7 @@
 [![Arduino Library Manager](https://flat.badgen.net/badge/Arduino%20Library%20Manager/available/00878f?labelColor=24292f)](https://www.ardu-badge.com/BetterMenu)
 [![Release](https://flat.badgen.net/badge/Release/0.5.5/8250df?labelColor=24292f)](https://github.com/ripred/BetterMenu/releases/latest)
 [![License](https://flat.badgen.net/badge/License/MIT/0969da?labelColor=24292f)](https://github.com/ripred/BetterMenu/blob/main/LICENSE)
-[![Stars](https://flat.badgen.net/badge/Stars/8/bf8700?labelColor=24292f)](https://github.com/ripred/BetterMenu/stargazers)
+[![Stars](https://flat.badgen.net/badge/Stars/11/bf8700?labelColor=24292f)](https://github.com/ripred/BetterMenu/stargazers)
 [![Forks](https://flat.badgen.net/badge/Forks/0/6f42c1?labelColor=24292f)](https://github.com/ripred/BetterMenu/network/members)
 
 BetterMenu is a header-only, non-blocking, declarative menu system for Arduino-class and other production embedded targets.
