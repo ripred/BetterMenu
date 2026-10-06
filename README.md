@@ -108,3 +108,7 @@ This BetterMenu repository itself now includes a static browser-based builder fo
 ## Full Documentation
 
 The full reference is versioned with the repository in [docs/README.md](docs/README.md). It covers entry types, decorators, runtime behavior, resource ownership, input adapters, display adapters, writing custom adapters, and the examples in more detail.
+
+Have fun,
+
+`ripred`
